@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
         self.settings_page.check_updates_requested.connect(lambda: self._check_updates(silent=False))
         self.settings_page.report_requested.connect(self._report_problem)
+        self.settings_page.about_requested.connect(self._show_about)
         self.history_page.redownload_requested.connect(self._redownload)
         self.history_page.play_requested.connect(lambda path: self._play_file(path))
 
@@ -145,7 +146,9 @@ class MainWindow(QMainWindow):
     # ---- metadata / thumbnail ---------------------------------------------
     def _metadata_ready(self, media: MediaInfo) -> None:
         self.download_page.set_media(media)
-        if media.thumbnail_url:
+        # The thumbnail URL comes from external metadata: only fetch over http(s)
+        # (never file://, data:, or other schemes).
+        if QUrl(media.thumbnail_url).scheme().lower() in ("http", "https"):
             reply = self.network.get(QNetworkRequest(QUrl(media.thumbnail_url)))
             reply.finished.connect(lambda r=reply: self._thumbnail_ready(r))
 
@@ -354,6 +357,11 @@ class MainWindow(QMainWindow):
         else:
             self.settings_page.set_component_status(message)
             self._error(message)
+
+    def _show_about(self) -> None:
+        from app.ui.about_dialog import AboutDialog
+
+        AboutDialog(self).exec()
 
     def _report_problem(self) -> None:
         import tempfile

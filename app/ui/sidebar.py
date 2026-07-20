@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QPixmap
-from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
@@ -12,21 +10,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.widgets import load_icon
+from app.ui.widgets import load_icon, render_svg
 from app.utils.paths import logo_path
 from app.version import __version__
-
-
-def _render_svg(path: str, size: int) -> QPixmap:
-    renderer = QSvgRenderer(path)
-    pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    from PySide6.QtGui import QPainter
-
-    painter = QPainter(pixmap)
-    renderer.render(painter)
-    painter.end()
-    return pixmap
 
 
 class Sidebar(QWidget):
@@ -46,7 +32,7 @@ class Sidebar(QWidget):
         brand_row = QHBoxLayout()
         brand_row.setSpacing(10)
         mark = QLabel()
-        mark.setPixmap(_render_svg(str(logo_path()), 30))
+        mark.setPixmap(render_svg(str(logo_path()), 30))
         mark.setFixedSize(30, 30)
         brand_text = QWidget()
         brand_text_layout = QVBoxLayout(brand_text)

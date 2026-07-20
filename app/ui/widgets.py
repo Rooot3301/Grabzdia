@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QIcon, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
 from app.utils.paths import icon_path
@@ -9,6 +11,18 @@ from app.utils.paths import icon_path
 def load_icon(name: str) -> QIcon:
     """Load an SVG icon from assets/icons by file name."""
     return QIcon(str(icon_path(name)))
+
+
+def render_svg(path: str, size: int) -> QPixmap:
+    """Rasterize an SVG file to a transparent square pixmap of the given size."""
+    renderer = QSvgRenderer(path)
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    renderer.render(painter)
+    painter.end()
+    return pixmap
 
 
 def eyebrow_label(text: str) -> QLabel:

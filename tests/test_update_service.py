@@ -24,14 +24,24 @@ def test_is_newer_false_when_equal_or_older():
     assert not is_newer("0.9.0", "1.0.0")
 
 
-def test_select_installer_asset_picks_exe():
+def test_select_installer_asset_picks_github_exe():
     assets = [
-        {"name": "notes.txt", "browser_download_url": "u1"},
-        {"name": "MediaGrab-Setup-1.1.0.exe", "browser_download_url": "u2"},
+        {"name": "notes.txt", "browser_download_url": "https://github.com/x/y/releases/download/v1/notes.txt"},
+        {"name": "MediaGrab-Setup-1.1.0.exe", "browser_download_url": "https://github.com/x/y/releases/download/v1/MediaGrab-Setup-1.1.0.exe"},
     ]
-    assert select_installer_asset(assets) == "u2"
+    assert select_installer_asset(assets).endswith("MediaGrab-Setup-1.1.0.exe")
 
 
 def test_select_installer_asset_none_when_no_exe():
-    assert select_installer_asset([{"name": "readme.md", "browser_download_url": "u"}]) is None
+    assert select_installer_asset([{"name": "readme.md", "browser_download_url": "https://github.com/x/y/r.md"}]) is None
     assert select_installer_asset([]) is None
+
+
+def test_select_installer_asset_rejects_untrusted_host():
+    # An .exe served from a non-GitHub host must be ignored (no code execution
+    # from an untrusted origin).
+    assets = [{"name": "evil.exe", "browser_download_url": "https://evil.example.com/evil.exe"}]
+    assert select_installer_asset(assets) is None
+    # http (non-TLS) also rejected
+    assets = [{"name": "x.exe", "browser_download_url": "http://github.com/x/y/x.exe"}]
+    assert select_installer_asset(assets) is None

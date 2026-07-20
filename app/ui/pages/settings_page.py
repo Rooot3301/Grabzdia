@@ -28,6 +28,7 @@ class SettingsPage(QWidget):
     update_ytdlp_requested = Signal()
     check_updates_requested = Signal()
     report_requested = Signal()
+    about_requested = Signal()
 
     def __init__(self, settings: ApplicationSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -167,7 +168,13 @@ class SettingsPage(QWidget):
         card.setObjectName("card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 18, 20, 18)
-        layout.addWidget(self._section("Application", f"MediaGrab {__version__}"))
+        header_row = QHBoxLayout()
+        header_row.addWidget(self._section("Application", f"MediaGrab {__version__}"), 1)
+        about_button = QPushButton("À propos")
+        about_button.setObjectName("ghostButton")
+        about_button.clicked.connect(self.about_requested)
+        header_row.addWidget(about_button, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(header_row)
         row = QHBoxLayout()
         self.update_status = QLabel("")
         self.update_status.setObjectName("mutedText")

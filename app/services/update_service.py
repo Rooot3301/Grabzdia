@@ -8,10 +8,18 @@ from __future__ import annotations
 import json
 import urllib.request
 from typing import Any
+from urllib.parse import urlsplit
 
 from PySide6.QtCore import QObject, Signal
 
 from app.constants import GITHUB_LATEST_RELEASE_API
+
+
+def _is_trusted_asset(url: str) -> bool:
+    """Only trust HTTPS release assets served from GitHub."""
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    return parts.scheme == "https" and (host == "github.com" or host.endswith(".githubusercontent.com"))
 
 
 def parse_version(text: str) -> tuple[int, ...]:
@@ -30,11 +38,12 @@ def is_newer(latest: str, current: str) -> bool:
 
 
 def select_installer_asset(assets: list[dict[str, Any]]) -> str | None:
-    """Return the download URL of the first .exe asset, if any."""
+    """Return the download URL of the first .exe asset served from GitHub."""
     for asset in assets:
         name = str(asset.get("name", "")).lower()
-        if name.endswith(".exe"):
-            return asset.get("browser_download_url")
+        url = str(asset.get("browser_download_url", ""))
+        if name.endswith(".exe") and _is_trusted_asset(url):
+            return url
     return None
 
 
