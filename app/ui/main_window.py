@@ -304,15 +304,19 @@ class MainWindow(QMainWindow):
             self._update_ytdlp()
 
     def _check_updates(self, silent: bool) -> None:
+        self._update_silent = silent
         if not silent:
             self.settings_page.set_check_enabled(False)
             self.settings_page.set_update_status("Recherche en cours…")
         worker = UpdateCheckWorker()
-        worker.finished.connect(lambda info, error: self._on_update_checked(info, error, silent))
+        # Bound method (not a lambda) so the slot is queued to the GUI thread;
+        # otherwise the dialog would be created in the worker thread and freeze.
+        worker.finished.connect(self._on_update_checked)
         self._update_check_worker = worker
         self._update_check_thread = start_worker(self, worker)
 
-    def _on_update_checked(self, info: object, error: str, silent: bool) -> None:
+    def _on_update_checked(self, info: object, error: str) -> None:
+        silent = getattr(self, "_update_silent", True)
         self.settings_page.set_check_enabled(True)
         if error or not isinstance(info, dict):
             if not silent:
@@ -328,10 +332,14 @@ class MainWindow(QMainWindow):
     def _update_ytdlp(self) -> None:
         self.settings_page.set_update_enabled(False)
         worker = BootstrapWorker([COMPONENTS["yt-dlp"]])
-        worker.progress.connect(lambda percent: self.settings_page.set_component_status(f"Téléchargement de yt-dlp… {percent} %"))
+        # Bound methods so GUI updates run on the GUI thread (queued connection).
+        worker.progress.connect(self._ytdlp_progress)
         worker.finished.connect(self._ytdlp_updated)
         self._update_worker = worker
         self._update_thread = start_worker(self, worker)
+
+    def _ytdlp_progress(self, percent: int) -> None:
+        self.settings_page.set_component_status(f"Téléchargement de yt-dlp… {percent} %")
 
     def _ytdlp_updated(self, success: bool, message: str) -> None:
         self.settings_page.set_update_enabled(True)

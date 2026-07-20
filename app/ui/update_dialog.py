@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -62,13 +63,22 @@ class UpdateDialog(QDialog):
         layout.addWidget(title)
 
         intro = QLabel(
-            "Une nouvelle version est publiée sur GitHub. Vous pouvez la télécharger "
-            "et l’installer maintenant ; MediaGrab se fermera pour laisser l’installateur "
-            "terminer."
+            "Une nouvelle version est publiée sur GitHub. Découvrez les nouveautés "
+            "ci-dessous, puis téléchargez et installez si vous le souhaitez (MediaGrab "
+            "se fermera pour laisser l’installateur terminer)."
         )
         intro.setObjectName("mutedText")
         intro.setWordWrap(True)
         layout.addWidget(intro)
+
+        notes = str(info.get("notes", "")).strip()
+        if notes:
+            layout.addWidget(eyebrow_label("Nouveautés"))
+            self.notes = QTextBrowser()
+            self.notes.setOpenExternalLinks(True)
+            self.notes.setMarkdown(notes)
+            self.notes.setMinimumHeight(180)
+            layout.addWidget(self.notes, 1)
 
         self.status = QLabel("")
         self.status.setObjectName("mutedText")
