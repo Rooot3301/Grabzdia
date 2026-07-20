@@ -13,6 +13,15 @@ def local_appdata_dir() -> Path:
     return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "MediaGrab"
 
 
+def managed_binary_dir() -> Path:
+    """Writable location for binaries downloaded on first run.
+
+    Program Files is read-only for normal users, so downloaded executables live
+    under LOCALAPPDATA instead of next to the installed application.
+    """
+    return local_appdata_dir() / "bin"
+
+
 def default_download_dir() -> Path:
     return Path.home() / "Downloads" / "MediaGrab"
 
@@ -25,8 +34,28 @@ def binary_dir() -> Path:
     return resource_root() / "bin"
 
 
+def assets_dir() -> Path:
+    return resource_root() / "assets"
+
+
+def icon_path(name: str) -> Path:
+    return assets_dir() / "icons" / name
+
+
+def logo_path() -> Path:
+    return assets_dir() / "logo.svg"
+
+
+def stylesheet_path() -> Path:
+    return assets_dir() / "styles" / "dark.qss"
+
+
+def app_icon_path() -> Path:
+    return assets_dir() / "MediaGrab.ico"
+
+
 def ensure_app_directories() -> None:
-    for path in (appdata_dir(), local_appdata_dir() / "logs", default_download_dir()):
+    for path in (appdata_dir(), local_appdata_dir() / "logs", managed_binary_dir(), default_download_dir()):
         path.mkdir(parents=True, exist_ok=True)
 
 

@@ -18,18 +18,22 @@ from PySide6.QtWidgets import (
 )
 
 from app.services.history_service import HistoryService
+from app.ui.widgets import page_header
 
 
-class HistoryWidget(QWidget):
-    def __init__(self, service: HistoryService, parent=None) -> None:
+class HistoryPage(QWidget):
+    def __init__(self, service: HistoryService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.service = service
-        title = QLabel("Historique")
-        title.setObjectName("pageTitle")
-        subtitle = QLabel("Retrouvez les téléchargements terminés, annulés ou en erreur.")
-        subtitle.setObjectName("mutedText")
+
+        header = page_header(
+            "Historique",
+            "Retrouvez les téléchargements terminés, annulés ou en erreur.",
+            eyebrow="Journal",
+        )
         self.count = QLabel()
         self.count.setObjectName("mutedText")
+
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["Titre", "Type", "Qualité", "Format", "Statut", "Date"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -38,24 +42,27 @@ class HistoryWidget(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setHighlightSections(False)
         for column in range(1, 6):
             self.table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         self.table.doubleClicked.connect(self.open_folder)
+
         open_button = QPushButton("Ouvrir le dossier")
         clear_button = QPushButton("Vider l’historique")
         clear_button.setObjectName("dangerButton")
         open_button.clicked.connect(self.open_folder)
         clear_button.clicked.connect(self.clear)
+
         row = QHBoxLayout()
         row.addWidget(self.count)
         row.addStretch()
         row.addWidget(open_button)
         row.addWidget(clear_button)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 28)
-        layout.setSpacing(14)
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        layout.setContentsMargins(36, 30, 36, 30)
+        layout.setSpacing(16)
+        layout.addWidget(header)
         layout.addLayout(row)
         layout.addWidget(self.table, 1)
         self.refresh()
@@ -67,7 +74,8 @@ class HistoryWidget(QWidget):
         for row, entry in enumerate(entries):
             for column, key in enumerate(("title", "mode", "quality", "output_format", "status", "finished_at")):
                 item = QTableWidgetItem(str(entry.get(key, "")))
-                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | (Qt.AlignmentFlag.AlignLeft if column == 0 else Qt.AlignmentFlag.AlignCenter))
+                alignment = Qt.AlignmentFlag.AlignLeft if column == 0 else Qt.AlignmentFlag.AlignCenter
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | alignment)
                 self.table.setItem(row, column, item)
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, entry.get("final_path") or entry.get("destination", ""))
 
