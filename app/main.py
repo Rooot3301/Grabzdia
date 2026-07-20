@@ -9,14 +9,15 @@ from PySide6.QtWidgets import QApplication
 
 from app.services.binary_service import BinaryService
 from app.services.bootstrap_service import components_for
+from app.services.settings_service import SettingsService
 from app.ui.first_run_dialog import FirstRunDialog
 from app.ui.main_window import MainWindow
+from app.ui.theme import apply_theme
 from app.utils.logging_utils import configure_logging
 from app.utils.paths import (
     app_icon_path,
     ensure_app_directories,
     logo_path,
-    stylesheet_path,
 )
 
 
@@ -44,9 +45,7 @@ def main() -> int:
     application.setApplicationName("MediaGrab")
     application.setOrganizationName("MediaGrab")
     application.setWindowIcon(_application_icon())
-    style = stylesheet_path()
-    if style.exists():
-        application.setStyleSheet(style.read_text(encoding="utf-8"))
+    apply_theme(application, SettingsService().load().theme)
     _run_first_run_if_needed()
     window = MainWindow()
     window.show()

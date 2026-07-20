@@ -50,6 +50,10 @@ def stylesheet_path() -> Path:
     return assets_dir() / "styles" / "dark.qss"
 
 
+def light_stylesheet_path() -> Path:
+    return assets_dir() / "styles" / "light.qss"
+
+
 def app_icon_path() -> Path:
     return assets_dir() / "MediaGrab.ico"
 

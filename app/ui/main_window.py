@@ -4,6 +4,7 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -26,6 +27,7 @@ from app.services.settings_service import SettingsService
 from app.services.update_service import UpdateCheckWorker, is_newer
 from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
+from app.ui.theme import apply_theme
 from app.ui.update_dialog import UpdateDialog
 from app.utils.filename import validate_output_template
 from app.utils.paths import app_icon_path, logo_path
@@ -108,6 +110,10 @@ class MainWindow(QMainWindow):
         self.history_page.redownload_requested.connect(self._redownload)
 
         self.notifications.activated.connect(self._raise_window)
+
+        app = QApplication.instance()
+        if app is not None:
+            app.styleHints().colorSchemeChanged.connect(self._on_color_scheme)
 
     def _shortcuts(self) -> None:
         shortcuts = {
@@ -235,10 +241,15 @@ class MainWindow(QMainWindow):
         self.settings_service.save(self.settings)
         self.manager.maximum = self.settings.parallel_downloads
         self.notifications.enabled = self.settings.notifications
+        apply_theme(QApplication.instance(), self.settings.theme)
         self.manager.start_available()
         self.download_page.refresh_settings()
         self._update_stats()
         self.statusBar().showMessage("Paramètres enregistrés.", 4000)
+
+    def _on_color_scheme(self, *_args) -> None:
+        if self.settings.theme == "system":
+            apply_theme(QApplication.instance(), "system")
 
     # ---- misc --------------------------------------------------------------
     def _icon(self) -> QIcon:

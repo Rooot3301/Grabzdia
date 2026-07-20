@@ -94,6 +94,12 @@ class SettingsPage(QWidget):
         self.organize.addItem("Créer un dossier par playlist", "playlist")
         self.organize.setCurrentIndex(max(0, self.organize.findData(self.settings.organize_mode)))
         form.addRow("Organisation", self.organize)
+        self.theme = QComboBox()
+        self.theme.addItem("Sombre", "dark")
+        self.theme.addItem("Clair", "light")
+        self.theme.addItem("Système", "system")
+        self.theme.setCurrentIndex(max(0, self.theme.findData(self.settings.theme)))
+        form.addRow("Thème", self.theme)
         layout.addLayout(form)
         return card
 
@@ -218,6 +224,7 @@ class SettingsPage(QWidget):
         self.settings.default_download_directory = self.folder.text().strip()
         self.settings.parallel_downloads = self.parallel.value()
         self.settings.organize_mode = self.organize.currentData()
+        self.settings.theme = self.theme.currentData()
         self.settings.filename_template = template
         self.settings.history_limit = self.history_limit.value()
         self.settings.use_download_archive = self.archive.isChecked()
