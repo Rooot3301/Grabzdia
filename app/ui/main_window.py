@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -20,10 +20,12 @@ from app.services.disk_service import DiskService
 from app.services.download_service import DownloadManager
 from app.services.history_service import HistoryService
 from app.services.metadata_service import MetadataService
+from app.services.notification_service import NotificationService
 from app.services.settings_service import SettingsService
 from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
 from app.utils.filename import validate_output_template
+from app.utils.paths import app_icon_path, logo_path
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +42,8 @@ class MainWindow(QMainWindow):
         self.metadata = MetadataService(self.binaries, self)
         self.manager = DownloadManager(self.binaries, self.settings.parallel_downloads, self)
         self.network = QNetworkAccessManager(self)
+        self.notifications = NotificationService(self._icon(), self)
+        self.notifications.enabled = self.settings.notifications
 
         self._build_ui()
         self._connect()
@@ -90,6 +94,8 @@ class MainWindow(QMainWindow):
         self.settings_page.saved.connect(self._settings_saved)
         self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
 
+        self.notifications.activated.connect(self._raise_window)
+
     def _shortcuts(self) -> None:
         shortcuts = {
             "Ctrl+,": lambda: self._go_to(2),
@@ -129,6 +135,10 @@ class MainWindow(QMainWindow):
         self.history_service.add(job.to_dict(), self.settings.history_limit)
         self.history_page.refresh()
         self.statusBar().showMessage(f"{job.title} : {job.status.value}", 8000)
+        if job.status == DownloadStatus.COMPLETED:
+            self.notifications.notify("Téléchargement terminé", job.title, success=True)
+        elif job.status == DownloadStatus.FAILED:
+            self.notifications.notify("Téléchargement échoué", job.title, success=False)
 
     def _update_stats(self) -> None:
         queued = sum(job.status == DownloadStatus.QUEUED for job in self.manager.jobs)
@@ -157,12 +167,22 @@ class MainWindow(QMainWindow):
             return
         self.settings_service.save(self.settings)
         self.manager.maximum = self.settings.parallel_downloads
+        self.notifications.enabled = self.settings.notifications
         self.manager.start_available()
         self.download_page.refresh_settings()
         self._update_stats()
         self.statusBar().showMessage("Paramètres enregistrés.", 4000)
 
     # ---- misc --------------------------------------------------------------
+    def _icon(self) -> QIcon:
+        icon = app_icon_path()
+        return QIcon(str(icon if icon.exists() else logo_path()))
+
+    def _raise_window(self) -> None:
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
     def _refresh_binary_status(self) -> None:
         missing = self.binaries.missing()
         if missing:
@@ -198,5 +218,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         self.metadata.cancel()
         self.manager.shutdown()
+        self.notifications.shutdown()
         self.settings_service.save(self.settings)
         event.accept()
