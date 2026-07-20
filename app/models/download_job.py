@@ -50,3 +50,11 @@ class DownloadJob:
         data = asdict(self)
         data["status"] = self.status.value
         return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> DownloadJob:
+        allowed = cls.__dataclass_fields__.keys()
+        kwargs = {key: data[key] for key in allowed if key in data}
+        if "status" in kwargs and not isinstance(kwargs["status"], DownloadStatus):
+            kwargs["status"] = DownloadStatus(str(kwargs["status"]))
+        return cls(**kwargs)

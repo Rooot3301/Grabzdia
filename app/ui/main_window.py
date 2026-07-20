@@ -21,6 +21,7 @@ from app.services.download_service import DownloadManager
 from app.services.history_service import HistoryService
 from app.services.metadata_service import MetadataService
 from app.services.notification_service import NotificationService
+from app.services.queue_service import QueueService
 from app.services.settings_service import SettingsService
 from app.services.update_service import UpdateCheckWorker, is_newer
 from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
@@ -41,6 +42,7 @@ class MainWindow(QMainWindow):
         self.settings_service = SettingsService()
         self.settings = self.settings_service.load()
         self.history_service = HistoryService()
+        self.queue_service = QueueService()
         self.binaries = BinaryService()
         self.metadata = MetadataService(self.binaries, self)
         self.manager = DownloadManager(self.binaries, self.settings.parallel_downloads, self)
@@ -53,6 +55,7 @@ class MainWindow(QMainWindow):
         self._connect()
         self._shortcuts()
         self._refresh_binary_status()
+        self._restore_queue()
         self._update_stats()
         self._maybe_auto_update()
         if self.settings.auto_check_updates:
@@ -136,10 +139,33 @@ class MainWindow(QMainWindow):
             self.download_page.set_thumbnail(pixmap)
         reply.deleteLater()
 
+    # ---- queue persistence -------------------------------------------------
+    def _restore_queue(self) -> None:
+        pending = {DownloadStatus.QUEUED, DownloadStatus.RUNNING, DownloadStatus.PAUSED}
+        for data in self.queue_service.load():
+            try:
+                job = DownloadJob.from_dict(data)
+            except Exception:
+                continue
+            if job.status not in pending:
+                continue
+            # A previously running/paused job resumes as queued, progress reset.
+            job.status = DownloadStatus.QUEUED
+            job.progress = 0.0
+            job.speed = job.eta = job.downloaded = job.total = ""
+            job.error = ""
+            self.manager.jobs.append(job)
+            self.download_page.update_job(job)
+
+    def _persist_queue(self) -> None:
+        pending = {DownloadStatus.QUEUED, DownloadStatus.RUNNING, DownloadStatus.PAUSED}
+        self.queue_service.save([job for job in self.manager.jobs if job.status in pending])
+
     # ---- queue / jobs ------------------------------------------------------
     def _on_job_ready(self, job: DownloadJob, start: bool) -> None:
         self.manager.enqueue(job, start)
         self.settings_service.save(self.settings)
+        self._persist_queue()
 
     def _redownload(self, entry: dict) -> None:
         url = entry.get("url", "")
@@ -163,6 +189,7 @@ class MainWindow(QMainWindow):
             use_archive=bool(entry.get("use_archive", False)),
         )
         self.manager.enqueue(job, True)
+        self._persist_queue()
         self._go_to(0)
         self._update_stats()
 
@@ -173,6 +200,7 @@ class MainWindow(QMainWindow):
     def _job_finished(self, job: DownloadJob) -> None:
         self.history_service.add(job.to_dict(), self.settings.history_limit)
         self.history_page.refresh()
+        self._persist_queue()
         self.statusBar().showMessage(f"{job.title} : {job.status.value}", 8000)
         if job.status == DownloadStatus.COMPLETED:
             self.notifications.notify("Téléchargement terminé", job.title, success=True)
@@ -303,5 +331,6 @@ class MainWindow(QMainWindow):
         self.metadata.cancel()
         self.manager.shutdown()
         self.notifications.shutdown()
+        self._persist_queue()
         self.settings_service.save(self.settings)
         event.accept()

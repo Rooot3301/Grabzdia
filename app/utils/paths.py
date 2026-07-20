@@ -61,5 +61,6 @@ def ensure_app_directories() -> None:
 
 def settings_path() -> Path: return appdata_dir() / "settings.json"
 def history_path() -> Path: return appdata_dir() / "history.json"
+def queue_path() -> Path: return appdata_dir() / "queue.json"
 def archive_path() -> Path: return appdata_dir() / "download_archive.txt"
 
