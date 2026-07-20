@@ -9,6 +9,9 @@
 
 QWidget { background: #0E1218; color: #EDF1F7; }
 QMainWindow, QDialog { background: #0E1218; }
+/* Labels and toggles must not paint the base colour over cards; the id-based
+   rules below (statusPill, platformPill, thumb, …) still set their own. */
+QLabel, QCheckBox, QRadioButton { background: transparent; }
 
 /* ---------------- Barre latérale ---------------- */
 #sidebar { background: #10151D; border-right: 1px solid #212A36; }
