@@ -185,6 +185,7 @@ class SettingsPage(QWidget):
     @staticmethod
     def _section(title: str, subtitle: str) -> QWidget:
         widget = QWidget()
+        widget.setObjectName("plainContainer")
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 8)
         layout.setSpacing(2)

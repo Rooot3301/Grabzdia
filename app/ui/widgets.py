@@ -31,6 +31,7 @@ def card(*, object_name: str = "card") -> QFrame:
 def page_header(title: str, subtitle: str, eyebrow: str = "") -> QWidget:
     """Standard page heading: optional eyebrow, title, subtitle."""
     container = QWidget()
+    container.setObjectName("plainContainer")
     layout = QVBoxLayout(container)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(4)

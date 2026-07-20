@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
@@ -19,6 +21,7 @@ class DownloadItemWidget(QFrame):
     cancel_requested = Signal(str)
     retry_requested = Signal(str)
     open_requested = Signal(str)
+    play_requested = Signal(str)
 
     def __init__(self, job: DownloadJob, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -34,6 +37,8 @@ class DownloadItemWidget(QFrame):
         self.bar.setTextVisible(False)
         self.cancel = QPushButton("Annuler")
         self.retry = QPushButton("Relancer")
+        self.play = QPushButton("Lire")
+        self.play.setObjectName("primaryButton")
         self.open = QPushButton("Ouvrir le dossier")
 
         heading = QHBoxLayout()
@@ -43,6 +48,7 @@ class DownloadItemWidget(QFrame):
         buttons.addStretch()
         buttons.addWidget(self.cancel)
         buttons.addWidget(self.retry)
+        buttons.addWidget(self.play)
         buttons.addWidget(self.open)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
@@ -53,6 +59,7 @@ class DownloadItemWidget(QFrame):
         self.cancel.clicked.connect(lambda: self.cancel_requested.emit(self.job_id))
         self.retry.clicked.connect(lambda: self.retry_requested.emit(self.job_id))
         self.open.clicked.connect(lambda: self.open_requested.emit(self.job_id))
+        self.play.clicked.connect(lambda: self.play_requested.emit(self.job_id))
         self.update_job(job)
 
     def update_job(self, job: DownloadJob) -> None:
@@ -68,3 +75,5 @@ class DownloadItemWidget(QFrame):
         self.cancel.setVisible(job.status == DownloadStatus.RUNNING)
         self.retry.setVisible(job.status in {DownloadStatus.FAILED, DownloadStatus.CANCELLED})
         self.open.setVisible(job.status == DownloadStatus.COMPLETED)
+        playable = job.status == DownloadStatus.COMPLETED and bool(job.final_path) and Path(job.final_path).exists()
+        self.play.setVisible(playable)

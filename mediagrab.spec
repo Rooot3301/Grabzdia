@@ -14,7 +14,9 @@ a = Analysis(
     pathex=[str(root)],
     binaries=[],
     datas=datas,
-    hiddenimports=[],
+    # The embedded player is imported lazily; declare the multimedia modules so
+    # PyInstaller collects them (the PySide6 hook pulls the backend plugins).
+    hiddenimports=["PySide6.QtMultimedia", "PySide6.QtMultimediaWidgets"],
     hookspath=[],
 )
 pyz = PYZ(a.pure)

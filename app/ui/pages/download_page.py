@@ -42,6 +42,7 @@ class DownloadPage(QWidget):
     cancel_requested = Signal(str)
     retry_requested = Signal(str)
     open_requested = Signal(str)
+    play_requested = Signal(str)
     options_remembered = Signal()
 
     def __init__(self, settings: ApplicationSettings, parent: QWidget | None = None) -> None:
@@ -443,6 +444,7 @@ class DownloadPage(QWidget):
             item.cancel_requested.connect(self.cancel_requested)
             item.retry_requested.connect(self.retry_requested)
             item.open_requested.connect(self.open_requested)
+            item.play_requested.connect(self.play_requested)
             self.items[job.id] = item
             self.queue_layout.insertWidget(self.queue_layout.count() - 1, item)
             self.queue_empty.setVisible(False)

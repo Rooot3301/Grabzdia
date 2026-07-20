@@ -17,6 +17,8 @@ des droits d'auteur, des licences et des conditions des plateformes.
 - **file d'attente persistante** (les téléchargements en attente survivent au
   redémarrage) ;
 - **progression dans la barre des tâches Windows** ;
+- **lecteur intégré** : prévisualiser une vidéo/audio téléchargée sans quitter
+  l'application ;
 - **nettoyage automatique des logs** de plus de 30 jours ;
 - analyse asynchrone (`yt-dlp --dump-single-json`) : titre, miniature, durée,
   auteur, plateforme et résolution maximale ;

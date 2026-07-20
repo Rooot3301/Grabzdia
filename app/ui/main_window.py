@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
@@ -101,6 +103,7 @@ class MainWindow(QMainWindow):
         self.download_page.cancel_requested.connect(self.manager.cancel)
         self.download_page.retry_requested.connect(self.manager.retry)
         self.download_page.open_requested.connect(self._open_target)
+        self.download_page.play_requested.connect(self._play_job)
 
         self.metadata.succeeded.connect(self._metadata_ready)
         self.metadata.failed.connect(self._error)
@@ -113,6 +116,7 @@ class MainWindow(QMainWindow):
         self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
         self.settings_page.check_updates_requested.connect(lambda: self._check_updates(silent=False))
         self.history_page.redownload_requested.connect(self._redownload)
+        self.history_page.play_requested.connect(lambda path: self._play_file(path))
 
         self.notifications.activated.connect(self._raise_window)
 
@@ -234,6 +238,18 @@ class MainWindow(QMainWindow):
     def _destination_changed(self, value: str) -> None:
         self.settings.last_download_directory = value
         self.settings_service.save(self.settings)
+
+    def _play_job(self, job_id: str) -> None:
+        job = self.manager.find(job_id)
+        self._play_file(job.final_path, job.title)
+
+    def _play_file(self, path: str, title: str = "") -> None:
+        if not path or not Path(path).is_file():
+            self._error("Fichier introuvable pour la lecture.")
+            return
+        from app.ui.player_dialog import PlayerDialog
+
+        PlayerDialog(path, title, self).show()
 
     def _open_target(self, job_id: str) -> None:
         target = self.manager.find(job_id).destination if job_id else self.download_page.destination.text()

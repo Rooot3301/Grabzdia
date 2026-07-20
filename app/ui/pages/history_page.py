@@ -25,6 +25,7 @@ from app.ui.widgets import page_header
 
 class HistoryPage(QWidget):
     redownload_requested = Signal(object)  # the history entry dict
+    play_requested = Signal(str)  # local file path
 
     def __init__(self, service: HistoryService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -62,6 +63,8 @@ class HistoryPage(QWidget):
         self.table.doubleClicked.connect(self.open_folder)
         self.table.itemSelectionChanged.connect(self._update_buttons)
 
+        self.play_button = QPushButton("Lire")
+        self.play_button.clicked.connect(self._play)
         self.redownload_button = QPushButton("Re-télécharger")
         self.redownload_button.setObjectName("primaryButton")
         self.redownload_button.clicked.connect(self._redownload)
@@ -73,6 +76,7 @@ class HistoryPage(QWidget):
 
         actions = QHBoxLayout()
         actions.addStretch()
+        actions.addWidget(self.play_button)
         actions.addWidget(self.redownload_button)
         actions.addWidget(open_button)
         actions.addWidget(clear_button)
@@ -117,6 +121,19 @@ class HistoryPage(QWidget):
     def _update_buttons(self) -> None:
         has_selection = self.table.currentRow() >= 0 and self.table.rowCount() > 0
         self.redownload_button.setEnabled(has_selection)
+        self.play_button.setEnabled(has_selection and self._playable_path() is not None)
+
+    def _playable_path(self) -> str | None:
+        entry = self._current_entry()
+        if not entry:
+            return None
+        final = str(entry.get("final_path", ""))
+        return final if final and Path(final).is_file() else None
+
+    def _play(self) -> None:
+        path = self._playable_path()
+        if path:
+            self.play_requested.emit(path)
 
     def _current_entry(self) -> dict[str, Any] | None:
         row = self.table.currentRow()

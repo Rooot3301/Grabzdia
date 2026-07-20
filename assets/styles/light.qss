@@ -10,6 +10,7 @@
 QWidget { background: #F5F7FB; color: #1B2230; }
 QMainWindow, QDialog { background: #F5F7FB; }
 QLabel, QCheckBox, QRadioButton { background: transparent; }
+QWidget#plainContainer { background: transparent; }
 
 /* ---------------- Barre latérale ---------------- */
 #sidebar { background: #ECEFF5; border-right: 1px solid #DCE2EC; }
