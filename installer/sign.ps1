@@ -13,8 +13,11 @@ param([Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)][string
 $ErrorActionPreference = "Stop"
 
 $Subject = "CN=Root3301"
+# Reuse the existing Root3301 signing certificate (newest with a private key) so
+# every release keeps the same signature identity; only create one if none exist.
 $cert = Get-ChildItem Cert:\CurrentUser\My |
-    Where-Object { $_.Subject -eq $Subject -and ($_.EnhancedKeyUsageList.FriendlyName -contains "Code Signing") } |
+    Where-Object { $_.Subject -eq $Subject -and $_.HasPrivateKey } |
+    Sort-Object NotAfter -Descending |
     Select-Object -First 1
 
 if (-not $cert) {
