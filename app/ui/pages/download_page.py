@@ -49,6 +49,7 @@ class DownloadPage(QWidget):
         self._build()
         self._connect()
         self._mode_changed()
+        self._update_actions()
 
     # ---- construction ------------------------------------------------------
     def _build(self) -> None:
