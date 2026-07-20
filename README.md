@@ -116,6 +116,12 @@ Le script build l'application, lit la version dans `app/version.py`, puis compil
 - **URL non prise en charge** : mettez à jour yt-dlp (les plateformes évoluent
   souvent).
 
+## Licence
+
+MediaGrab est distribué sous licence **MIT** (Dev by Root3301) — voir
+[LICENSE](LICENSE). yt-dlp et FFmpeg, téléchargés au premier lancement, restent
+soumis à leurs licences respectives.
+
 ## Architecture
 
 La logique est séparée entre `models`, `utils`, `parsers`, `services` et `ui`
