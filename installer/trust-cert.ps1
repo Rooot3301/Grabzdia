@@ -1,22 +1,21 @@
-# Installe le certificat auto-signé Root3301 comme éditeur de confiance SUR CETTE
-# MACHINE, afin que les binaires MediaGrab signés soient reconnus ici (supprime
-# l'avertissement « éditeur inconnu » / SmartScreen sur ce PC).
+# Installe le certificat auto-signe Root3301 comme editeur de confiance SUR CETTE
+# MACHINE, afin que les binaires MediaGrab signes soient reconnus ici (supprime
+# l'avertissement "editeur inconnu" pour la signature sur ce PC).
 #
-# Ne concerne QUE la machine où on l'exécute — cela ne change rien pour les
-# autres utilisateurs qui téléchargeraient MediaGrab. Nécessite les droits
-# administrateur.
+# Ne concerne QUE la machine ou on l'execute. Necessite les droits admin.
 #
-# Usage :  clic droit > « Exécuter avec PowerShell » (en admin), ou :
-#          powershell -ExecutionPolicy Bypass -File installer\trust-cert.ps1
+# Usage: clic droit > "Executer avec PowerShell", ou:
+#        powershell -ExecutionPolicy Bypass -File installer\trust-cert.ps1
 
 $ErrorActionPreference = "Stop"
 
-# Élévation automatique si nécessaire.
+# Elevation automatique si necessaire.
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $isAdmin = ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Write-Host "Droits administrateur requis — relance en tant qu'administrateur..."
-    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    Write-Host "Droits administrateur requis - relance en tant qu'administrateur..."
+    $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
+    Start-Process powershell.exe -Verb RunAs -ArgumentList $arguments
     return
 }
 
@@ -26,7 +25,7 @@ $cert = Get-ChildItem Cert:\CurrentUser\My |
     Sort-Object NotAfter -Descending |
     Select-Object -First 1
 if (-not $cert) {
-    throw "Certificat '$Subject' introuvable. Lancez d'abord une signature (build.ps1 ou installer\sign.ps1)."
+    throw "Certificat $Subject introuvable. Lancez d'abord une signature (build.ps1 ou installer\sign.ps1)."
 }
 
 $temp = Join-Path $env:TEMP "Root3301.cer"
@@ -40,7 +39,7 @@ finally {
 }
 
 Write-Host ""
-Write-Host "OK : Root3301 est maintenant un editeur de confiance sur cette machine."
-Write-Host "Si l'installateur a ete telecharge depuis Internet, debloquez-le une fois :"
-Write-Host "    Clic droit > Proprietes > cocher 'Debloquer'   (ou)"
+Write-Host "OK: Root3301 est maintenant un editeur de confiance sur cette machine."
+Write-Host "Si l'installateur vient d'Internet, debloquez-le une fois:"
+Write-Host "    clic droit > Proprietes > cocher 'Debloquer', ou"
 Write-Host "    Unblock-File 'C:\chemin\MediaGrab-Setup-1.0.1.exe'"
