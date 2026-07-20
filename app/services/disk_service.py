@@ -9,6 +9,32 @@ from app.exceptions import InsufficientDiskSpaceError, InvalidDestinationError
 
 class DiskService:
     @staticmethod
+    def free_space(value: str) -> int | None:
+        """Free bytes on the volume holding `value`, or None if unknown.
+
+        Falls back to the nearest existing parent so it works before the folder
+        is created.
+        """
+        path = Path(value).expanduser()
+        while not path.exists() and path != path.parent:
+            path = path.parent
+        try:
+            return shutil.disk_usage(path).free
+        except OSError:
+            return None
+
+    @staticmethod
+    def human_size(num: int | None) -> str:
+        if not num or num < 0:
+            return "—"
+        size = float(num)
+        for unit in ("o", "Ko", "Mo", "Go", "To"):
+            if size < 1024 or unit == "To":
+                return f"{size:.0f} {unit}" if unit in ("o", "Ko") else f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size:.1f} To"
+
+    @staticmethod
     def validate_destination(value: str, expected_size: int | None = None) -> Path:
         path = Path(value).expanduser()
         if "\x00" in value: raise InvalidDestinationError("Le chemin contient un caractère invalide.")

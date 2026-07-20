@@ -54,6 +54,7 @@ class DownloadPage(QWidget):
         self._connect()
         self._apply_remembered_options()
         self._update_actions()
+        self._update_disk_info()
 
     # ---- construction ------------------------------------------------------
     def _build(self) -> None:
@@ -228,6 +229,9 @@ class DownloadPage(QWidget):
         row.addWidget(self.open_button)
         row.addWidget(self.reset_button)
         layout.addLayout(row)
+        self.disk_info = QLabel("")
+        self.disk_info.setObjectName("mutedText")
+        layout.addWidget(self.disk_info)
         return card
 
     def _action_row(self) -> QHBoxLayout:
@@ -282,6 +286,7 @@ class DownloadPage(QWidget):
         self.browse_button.clicked.connect(self._browse)
         self.open_button.clicked.connect(lambda: self.open_requested.emit(""))
         self.reset_button.clicked.connect(lambda: self.destination.setText(self.settings.default_download_directory))
+        self.destination.textChanged.connect(self._update_disk_info)
         self.queue_button.clicked.connect(lambda: self._enqueue(False))
         self.download_button.clicked.connect(lambda: self._enqueue(True))
         self.start_queue_button.clicked.connect(self.start_queue_requested)
@@ -433,6 +438,7 @@ class DownloadPage(QWidget):
             self.platform_pill.setText(media.platform)
             self.platform_pill.setVisible(True)
         self._update_actions()
+        self._update_disk_info()
 
     def set_thumbnail(self, pixmap: QPixmap) -> None:
         self.thumbnail.setPixmap(pixmap)
@@ -459,6 +465,19 @@ class DownloadPage(QWidget):
             self.queue_empty.setVisible(False)
         self.start_queue_button.setVisible(queued > 0)
         self.start_queue_button.setEnabled(active < maximum)
+
+    def _update_disk_info(self, *_args) -> None:
+        free = DiskService.free_space(self.destination.text())
+        estimated = self.media.estimated_size if self.media else None
+        free_text = DiskService.human_size(free)
+        text = (
+            f"Espace libre : {free_text}  ·  Taille estimée : ~{DiskService.human_size(estimated)}"
+            if estimated
+            else f"Espace libre : {free_text}"
+        )
+        insufficient = bool(estimated) and free is not None and estimated * 1.1 > free
+        self.disk_info.setText(("⚠  " + text + "  —  espace insuffisant") if insufficient else text)
+        self.disk_info.setStyleSheet("color: #FFB454;" if insufficient else "")
 
     def _update_actions(self, *_args) -> None:
         ready = self.media is not None

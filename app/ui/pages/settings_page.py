@@ -27,6 +27,7 @@ class SettingsPage(QWidget):
     saved = Signal()
     update_ytdlp_requested = Signal()
     check_updates_requested = Signal()
+    report_requested = Signal()
 
     def __init__(self, settings: ApplicationSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -180,6 +181,17 @@ class SettingsPage(QWidget):
         self.auto_check = QCheckBox("Vérifier les mises à jour au démarrage")
         self.auto_check.setChecked(self.settings.auto_check_updates)
         layout.addWidget(self.auto_check)
+
+        report_row = QHBoxLayout()
+        report_hint = QLabel("Un souci ? Générez un rapport (logs anonymisés) et ouvrez un ticket.")
+        report_hint.setObjectName("mutedText")
+        report_hint.setWordWrap(True)
+        report_button = QPushButton("Signaler un problème")
+        report_button.setObjectName("ghostButton")
+        report_button.clicked.connect(self.report_requested)
+        report_row.addWidget(report_hint, 1)
+        report_row.addWidget(report_button)
+        layout.addLayout(report_row)
         return card
 
     @staticmethod

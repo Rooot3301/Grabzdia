@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
         self.settings_page.saved.connect(self._settings_saved)
         self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
         self.settings_page.check_updates_requested.connect(lambda: self._check_updates(silent=False))
+        self.settings_page.report_requested.connect(self._report_problem)
         self.history_page.redownload_requested.connect(self._redownload)
         self.history_page.play_requested.connect(lambda path: self._play_file(path))
 
@@ -249,7 +250,11 @@ class MainWindow(QMainWindow):
             return
         from app.ui.player_dialog import PlayerDialog
 
-        PlayerDialog(path, title, self).show()
+        # Keep a reference so the non-modal dialog is not garbage-collected.
+        self._player = PlayerDialog(path, title, self)
+        self._player.show()
+        self._player.raise_()
+        self._player.activateWindow()
 
     def _open_target(self, job_id: str) -> None:
         target = self.manager.find(job_id).destination if job_id else self.download_page.destination.text()
@@ -349,6 +354,22 @@ class MainWindow(QMainWindow):
         else:
             self.settings_page.set_component_status(message)
             self._error(message)
+
+    def _report_problem(self) -> None:
+        import tempfile
+
+        from app.services.report_service import build_report, issue_url
+
+        downloads = Path.home() / "Downloads"
+        target_dir = downloads if downloads.is_dir() else Path(tempfile.gettempdir())
+        try:
+            zip_path = build_report(target_dir)
+        except Exception as error:
+            self._error(f"Impossible de créer le rapport : {error}")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(zip_path.parent)))
+        QDesktopServices.openUrl(QUrl(issue_url()))
+        self.statusBar().showMessage(f"Rapport créé : {zip_path.name}. Joignez-le au ticket GitHub.", 12000)
 
     def _error(self, message: str) -> None:
         QMessageBox.warning(self, "MediaGrab", message)

@@ -81,6 +81,8 @@ def test_redownload_from_history_builds_job(qtbot, monkeypatch):
     monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
     win = MainWindow()
     qtbot.addWidget(win)
+    # Do not launch a real yt-dlp process: verify the job is built and enqueued.
+    monkeypatch.setattr(win.manager, "start_available", lambda: None)
     entry = {
         "url": "https://example.com/watch?v=abc",
         "title": "Ancienne vidéo",
