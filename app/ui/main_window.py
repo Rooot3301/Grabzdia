@@ -24,6 +24,7 @@ from app.services.metadata_service import MetadataService
 from app.services.notification_service import NotificationService
 from app.services.queue_service import QueueService
 from app.services.settings_service import SettingsService
+from app.services.taskbar_service import TaskbarProgress, average_progress
 from app.services.update_service import UpdateCheckWorker, is_newer
 from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
@@ -54,6 +55,10 @@ class MainWindow(QMainWindow):
 
         self.setAcceptDrops(True)
         self._build_ui()
+        try:
+            self.taskbar: TaskbarProgress | None = TaskbarProgress(int(self.winId()))
+        except Exception:
+            self.taskbar = None
         self._connect()
         self._shortcuts()
         self._refresh_binary_status()
@@ -218,6 +223,12 @@ class MainWindow(QMainWindow):
         active = len(self.manager.runners)
         total = len(self.manager.jobs)
         self.download_page.set_queue_stats(total, active, queued, self.manager.maximum)
+        if self.taskbar is not None:
+            running = [job.progress for job in self.manager.jobs if job.status == DownloadStatus.RUNNING]
+            if running:
+                self.taskbar.set_progress(average_progress(running))
+            else:
+                self.taskbar.clear()
 
     # ---- destinations ------------------------------------------------------
     def _destination_changed(self, value: str) -> None:
@@ -342,6 +353,8 @@ class MainWindow(QMainWindow):
         self.metadata.cancel()
         self.manager.shutdown()
         self.notifications.shutdown()
+        if self.taskbar is not None:
+            self.taskbar.clear()
         self._persist_queue()
         self.settings_service.save(self.settings)
         event.accept()
