@@ -42,6 +42,12 @@ Au **premier démarrage**, MediaGrab propose de télécharger `yt-dlp` et `FFmpe
 (~40 à 90 Mo) depuis leurs sources officielles vers votre dossier utilisateur.
 Une connexion Internet est nécessaire à ce moment-là uniquement.
 
+> **Avertissement Windows au lancement du setup ?** Windows SmartScreen peut
+> afficher « Windows a protégé votre ordinateur / Éditeur inconnu ». C'est
+> normal : MediaGrab est open-source et n'est pas signé par un certificat
+> commercial. Cliquez sur **« Informations complémentaires »** puis
+> **« Exécuter quand même »**.
+
 ## Données locales
 
 - paramètres : `%APPDATA%\MediaGrab\settings.json`
