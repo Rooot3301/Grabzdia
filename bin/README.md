@@ -1,8 +1,14 @@
-Placez ici les binaires Windows officiels suivants avant de lancer ou distribuer l’application :
+Ce dossier est **optionnel**.
 
-- `yt-dlp.exe`
-- `ffmpeg.exe`
-- `ffprobe.exe`
+Depuis la version 1.0, MediaGrab télécharge automatiquement `yt-dlp.exe`,
+`ffmpeg.exe` et `ffprobe.exe` au premier lancement, depuis leurs sources
+officielles, vers `%LOCALAPPDATA%\MediaGrab\bin`.
 
-Ils ne sont pas inclus dans le dépôt. MediaGrab les recherche d’abord ici, puis dans le `PATH`.
+Vous pouvez toutefois placer ici ces trois exécutables pour un usage hors-ligne
+ou en développement. MediaGrab les recherche dans cet ordre :
 
+1. `%LOCALAPPDATA%\MediaGrab\bin` (téléchargés automatiquement) ;
+2. ce dossier `bin/` ;
+3. le `PATH` du système.
+
+Les `.exe` ne sont pas suivis par Git.

@@ -11,12 +11,18 @@ if (-not (Test-Path $PythonExe)) {
     else { throw "Python 3.12 ou uv est requis pour créer l’environnement." }
 }
 
-$RequiredBinaries = @("yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe")
-$MissingBinaries = $RequiredBinaries | Where-Object { -not (Test-Path (Join-Path $ProjectRoot "bin\$_")) }
-if ($MissingBinaries) { throw "Binaires manquants dans bin: $($MissingBinaries -join ', ')" }
+# yt-dlp, ffmpeg and ffprobe are downloaded on first run, so they are not
+# required in bin/ to build the distribution.
 
 & $PythonExe -m pip install -r requirements-dev.txt
 if ($LASTEXITCODE -ne 0) { throw "L’installation des dépendances a échoué." }
+
+# Regenerate the application icon from the SVG source if it is missing.
+if (-not (Test-Path (Join-Path $ProjectRoot "assets\MediaGrab.ico"))) {
+    & $PythonExe (Join-Path $ProjectRoot "assets\make_icon.py")
+    if ($LASTEXITCODE -ne 0) { throw "La génération de l’icône a échoué." }
+}
+
 & $PythonExe -m ruff check app tests
 if ($LASTEXITCODE -ne 0) { throw "Ruff a détecté des erreurs; build arrêté." }
 & $PythonExe -m pytest
