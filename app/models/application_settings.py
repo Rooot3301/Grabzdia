@@ -17,6 +17,17 @@ class ApplicationSettings:
     use_download_archive: bool = False
     notifications: bool = True
     filename_template: str = "%(title)s [%(id)s].%(ext)s"
+    auto_update_ytdlp: bool = False
+    # Remembered output options (restored on next launch).
+    last_mode: str = "video"
+    last_quality: str = "1080p"
+    last_video_format: str = "MP4"
+    last_audio_format: str = "MP3"
+    last_codec: str = "Automatique"
+    last_audio_bitrate: str = "320 kb/s"
+    last_subtitles: bool = False
+    last_embed_metadata: bool = True
+    last_embed_thumbnail: bool = True
 
     def __post_init__(self) -> None:
         default = str(default_download_dir())

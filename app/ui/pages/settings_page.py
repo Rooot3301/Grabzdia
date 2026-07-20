@@ -136,6 +136,9 @@ class SettingsPage(QWidget):
         self.update_button.clicked.connect(self.update_ytdlp_requested)
         row.addWidget(self.update_button)
         layout.addLayout(row)
+        self.auto_update = QCheckBox("Mettre à jour yt-dlp automatiquement au démarrage")
+        self.auto_update.setChecked(self.settings.auto_update_ytdlp)
+        layout.addWidget(self.auto_update)
         return card
 
     def _notifications_card(self) -> QFrame:
@@ -188,6 +191,7 @@ class SettingsPage(QWidget):
         self.settings.history_limit = self.history_limit.value()
         self.settings.use_download_archive = self.archive.isChecked()
         self.settings.notifications = self.notifications.isChecked()
+        self.settings.auto_update_ytdlp = self.auto_update.isChecked()
         self.feedback.setStyleSheet("")
         self.feedback.setText("Paramètres enregistrés")
         self.saved.emit()

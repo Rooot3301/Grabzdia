@@ -23,10 +23,12 @@ from app.models.application_settings import ApplicationSettings
 from app.models.download_job import DownloadJob
 from app.models.media_info import MediaInfo
 from app.services.disk_service import DiskService
+from app.ui.batch_dialog import BatchDialog
 from app.ui.download_item_widget import DownloadItemWidget
 from app.ui.log_panel import LogPanel
 from app.ui.widgets import eyebrow_label, page_header
 from app.utils.filename import sanitize_filename, validate_output_template
+from app.utils.url_validator import validate_media_url
 
 CODEC_MAP = {"Automatique": "auto", "H.264": "h264", "VP9": "vp9", "AV1": "av1"}
 
@@ -40,6 +42,7 @@ class DownloadPage(QWidget):
     cancel_requested = Signal(str)
     retry_requested = Signal(str)
     open_requested = Signal(str)
+    options_remembered = Signal()
 
     def __init__(self, settings: ApplicationSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -48,7 +51,7 @@ class DownloadPage(QWidget):
         self.items: dict[str, DownloadItemWidget] = {}
         self._build()
         self._connect()
-        self._mode_changed()
+        self._apply_remembered_options()
         self._update_actions()
 
     # ---- construction ------------------------------------------------------
@@ -99,13 +102,17 @@ class DownloadPage(QWidget):
         self.url.setClearButtonEnabled(True)
         self.paste = QPushButton("Coller")
         self.paste.setObjectName("ghostButton")
+        self.batch = QPushButton("Lot…")
+        self.batch.setObjectName("ghostButton")
+        self.batch.setToolTip("Ajouter plusieurs liens à la file")
         self.analyze = QPushButton("Analyser")
         self.analyze.setObjectName("primaryButton")
         row.addWidget(self.url, 1)
         row.addWidget(self.paste)
+        row.addWidget(self.batch)
         row.addWidget(self.analyze)
         layout.addLayout(row)
-        self.spinner = QLabel("")
+        self.spinner = QLabel("Astuce : glissez-déposez un lien ici.")
         self.spinner.setObjectName("mutedText")
         layout.addWidget(self.spinner)
         return card
@@ -266,6 +273,7 @@ class DownloadPage(QWidget):
     # ---- wiring ------------------------------------------------------------
     def _connect(self) -> None:
         self.paste.clicked.connect(lambda: self.url.setText(QApplication.clipboard().text().strip()))
+        self.batch.clicked.connect(self._open_batch)
         self.analyze.clicked.connect(self._emit_analyze)
         self.url.returnPressed.connect(self._emit_analyze)
         self.url.textChanged.connect(self._update_actions)
@@ -304,24 +312,12 @@ class DownloadPage(QWidget):
             self.destination.setText(value)
             self.destination_changed.emit(value)
 
-    def _enqueue(self, start: bool) -> None:
-        if not self.media:
-            self.error.emit("Analysez d’abord une URL.")
-            return
-        try:
-            validate_output_template(self.settings.filename_template)
-            base = DiskService.validate_destination(self.destination.text(), self.media.estimated_size)
-            playlist_name = sanitize_filename(self.media.title) if self.media.is_playlist else ""
-            media_type = "audio" if self._is_audio() else "video"
-            destination = str(DiskService.organized_destination(base, self.settings.organize_mode, media_type, playlist_name))
-        except Exception as error:
-            self.error.emit(str(error))
-            return
+    def _build_job(self, url: str, title: str, destination: str) -> DownloadJob:
         audio = self._is_audio()
         quality = self.quality.currentText().replace("Automatique", "auto").replace("Meilleure qualité", "best")
-        job = DownloadJob(
-            url=self.media.original_url,
-            title=self.media.title,
+        return DownloadJob(
+            url=url,
+            title=title,
             mode="audio" if audio else "video",
             quality=quality,
             output_format=self.format.currentText().lower(),
@@ -335,12 +331,93 @@ class DownloadPage(QWidget):
             playlist=self.playlist.isChecked(),
             use_archive=self.settings.use_download_archive,
         )
+
+    def _enqueue(self, start: bool) -> None:
+        if not self.media:
+            self.error.emit("Analysez d’abord une URL.")
+            return
+        try:
+            validate_output_template(self.settings.filename_template)
+            base = DiskService.validate_destination(self.destination.text(), self.media.estimated_size)
+            playlist_name = sanitize_filename(self.media.title) if self.media.is_playlist else ""
+            media_type = "audio" if self._is_audio() else "video"
+            destination = str(DiskService.organized_destination(base, self.settings.organize_mode, media_type, playlist_name))
+        except Exception as error:
+            self.error.emit(str(error))
+            return
+        self._remember_options()
+        job = self._build_job(self.media.original_url, self.media.title, destination)
         self.job_ready.emit(job, start)
+
+    def _open_batch(self) -> None:
+        dialog = BatchDialog(self)
+        if dialog.exec():
+            self.enqueue_batch(dialog.urls())
+
+    def enqueue_batch(self, urls: list[str]) -> None:
+        valid: list[str] = []
+        for raw in urls:
+            candidate = raw.strip()
+            if not candidate:
+                continue
+            try:
+                validate_media_url(candidate)
+            except Exception:
+                continue
+            valid.append(candidate)
+        if not valid:
+            self.error.emit("Aucune URL valide dans la liste.")
+            return
+        try:
+            validate_output_template(self.settings.filename_template)
+            base = DiskService.validate_destination(self.destination.text())
+            media_type = "audio" if self._is_audio() else "video"
+            destination = str(DiskService.organized_destination(base, self.settings.organize_mode, media_type, ""))
+        except Exception as error:
+            self.error.emit(str(error))
+            return
+        self._remember_options()
+        for url in valid:
+            self.job_ready.emit(self._build_job(url, url, destination), False)
+        self.start_queue_requested.emit()
+
+    def load_url(self, url: str) -> None:
+        """Fill the URL field and start analysis (used by drag & drop)."""
+        self.url.setText(url)
+        self._emit_analyze()
+
+    def _apply_remembered_options(self) -> None:
+        settings = self.settings
+        (self.mode_audio if settings.last_mode == "audio" else self.mode_video).setChecked(True)
+        self._mode_changed()
+        self.quality.setCurrentText(settings.last_quality)
+        self.codec.setCurrentText(settings.last_codec)
+        self.bitrate.setCurrentText(settings.last_audio_bitrate)
+        self.format.setCurrentText(settings.last_audio_format if settings.last_mode == "audio" else settings.last_video_format)
+        self.subtitles.setChecked(settings.last_subtitles)
+        self.metadata_box.setChecked(settings.last_embed_metadata)
+        self.thumbnail_box.setChecked(settings.last_embed_thumbnail)
+
+    def _remember_options(self) -> None:
+        settings = self.settings
+        audio = self._is_audio()
+        settings.last_mode = "audio" if audio else "video"
+        settings.last_quality = self.quality.currentText()
+        settings.last_codec = self.codec.currentText()
+        settings.last_audio_bitrate = self.bitrate.currentText()
+        if audio:
+            settings.last_audio_format = self.format.currentText()
+        else:
+            settings.last_video_format = self.format.currentText()
+        settings.last_subtitles = self.subtitles.isChecked()
+        settings.last_embed_metadata = self.metadata_box.isChecked()
+        settings.last_embed_thumbnail = self.thumbnail_box.isChecked()
+        self.options_remembered.emit()
 
     # ---- public API used by the window ------------------------------------
     def set_busy(self, busy: bool) -> None:
         self.analyze.setEnabled(not busy)
-        self.spinner.setText("Analyse en cours…" if busy else "")
+        self.spinner.setText("Analyse en cours…" if busy else "Astuce : glissez-déposez un lien ici.")
 
     def set_media(self, media: MediaInfo) -> None:
         self.media = media

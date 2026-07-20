@@ -45,11 +45,13 @@ class MainWindow(QMainWindow):
         self.notifications = NotificationService(self._icon(), self)
         self.notifications.enabled = self.settings.notifications
 
+        self.setAcceptDrops(True)
         self._build_ui()
         self._connect()
         self._shortcuts()
         self._refresh_binary_status()
         self._update_stats()
+        self._maybe_auto_update()
 
     # ---- construction ------------------------------------------------------
     def _build_ui(self) -> None:
@@ -76,7 +78,8 @@ class MainWindow(QMainWindow):
         self.sidebar.navigated.connect(self.stack.setCurrentIndex)
 
         self.download_page.analyze_requested.connect(self.metadata.analyze)
-        self.download_page.job_ready.connect(self.manager.enqueue)
+        self.download_page.job_ready.connect(self._on_job_ready)
+        self.download_page.options_remembered.connect(lambda: self.settings_service.save(self.settings))
         self.download_page.start_queue_requested.connect(self.manager.start_available)
         self.download_page.error.connect(self._error)
         self.download_page.destination_changed.connect(self._destination_changed)
@@ -93,6 +96,7 @@ class MainWindow(QMainWindow):
 
         self.settings_page.saved.connect(self._settings_saved)
         self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
+        self.history_page.redownload_requested.connect(self._redownload)
 
         self.notifications.activated.connect(self._raise_window)
 
@@ -127,6 +131,35 @@ class MainWindow(QMainWindow):
         reply.deleteLater()
 
     # ---- queue / jobs ------------------------------------------------------
+    def _on_job_ready(self, job: DownloadJob, start: bool) -> None:
+        self.manager.enqueue(job, start)
+        self.settings_service.save(self.settings)
+
+    def _redownload(self, entry: dict) -> None:
+        url = entry.get("url", "")
+        if not url:
+            self._error("Cette entrée d’historique ne contient pas d’URL.")
+            return
+        job = DownloadJob(
+            url=url,
+            title=entry.get("title", url),
+            mode=entry.get("mode", "video"),
+            quality=entry.get("quality", "auto"),
+            output_format=entry.get("output_format", "mp4"),
+            destination=entry.get("destination") or self.settings.last_download_directory,
+            filename_template=entry.get("filename_template", self.settings.filename_template),
+            video_codec=entry.get("video_codec", "auto"),
+            audio_bitrate=str(entry.get("audio_bitrate", "320")),
+            subtitles=bool(entry.get("subtitles", False)),
+            embed_metadata=bool(entry.get("embed_metadata", True)),
+            embed_thumbnail=bool(entry.get("embed_thumbnail", True)),
+            playlist=bool(entry.get("playlist", False)),
+            use_archive=bool(entry.get("use_archive", False)),
+        )
+        self.manager.enqueue(job, True)
+        self._go_to(0)
+        self._update_stats()
+
     def _job_updated(self, job: DownloadJob) -> None:
         self.download_page.update_job(job)
         self._update_stats()
@@ -194,6 +227,10 @@ class MainWindow(QMainWindow):
             self.sidebar.set_status("Composants prêts", "ok")
             self.settings_page.set_component_status("yt-dlp et FFmpeg sont installés et prêts.")
 
+    def _maybe_auto_update(self) -> None:
+        if self.settings.auto_update_ytdlp and "yt-dlp" not in self.binaries.missing():
+            self._update_ytdlp()
+
     def _update_ytdlp(self) -> None:
         self.settings_page.set_update_enabled(False)
         worker = BootstrapWorker([COMPONENTS["yt-dlp"]])
@@ -214,6 +251,25 @@ class MainWindow(QMainWindow):
     def _error(self, message: str) -> None:
         QMessageBox.warning(self, "MediaGrab", message)
         self.download_page.write_log(message)
+
+    # ---- drag & drop -------------------------------------------------------
+    def dragEnterEvent(self, event) -> None:
+        data = event.mimeData()
+        if data.hasUrls() or data.hasText():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:
+        data = event.mimeData()
+        candidates = [url.toString() for url in data.urls()] if data.hasUrls() else data.text().splitlines()
+        urls = [candidate.strip() for candidate in candidates if candidate.strip()]
+        if not urls:
+            return
+        self._go_to(0)
+        if len(urls) == 1:
+            self.download_page.load_url(urls[0])
+        else:
+            self.download_page.enqueue_batch(urls)
+        event.acceptProposedAction()
 
     def closeEvent(self, event) -> None:
         self.metadata.cancel()
