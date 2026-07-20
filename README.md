@@ -115,6 +115,19 @@ SmartScreen affiche tout de même « éditeur inconnu » ; la signature garantit
 l'intégrité et porte l'identité Root3301. Un certificat commercial est nécessaire
 pour supprimer l'avertissement pour tous les utilisateurs.
 
+Pour lever l'avertissement **sur votre propre machine**, exécutez une fois (en
+administrateur) :
+
+```powershell
+.\installer\trust-cert.ps1
+```
+
+Ce script installe le certificat Root3301 dans les magasins « Autorités de
+certification racines de confiance » et « Éditeurs approuvés » de la machine. Si
+l'installateur a été téléchargé depuis Internet, débloquez-le une fois (clic
+droit → Propriétés → « Débloquer », ou `Unblock-File`). Cela n'affecte que la
+machine concernée.
+
 ## Dépannage
 
 - **téléchargement des composants échoué** : vérifiez votre connexion, puis
