@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QProcess, Signal
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
 
 from app.parsers.metadata_parser import parse_metadata
 from app.services.binary_service import BinaryService
 from app.utils.url_validator import validate_media_url
+
+
+def _utf8_environment() -> QProcessEnvironment:
+    environment = QProcessEnvironment.systemEnvironment()
+    environment.insert("PYTHONIOENCODING", "utf-8")
+    environment.insert("PYTHONUTF8", "1")
+    return environment
 
 
 class MetadataService(QObject):
@@ -21,6 +28,7 @@ class MetadataService(QObject):
         except Exception as error: self.failed.emit(str(error)); return
         args = ["--dump-single-json", "--no-warnings", "--yes-playlist" if playlist else "--no-playlist", self.url]
         self.process = QProcess(self); self.process.setProgram(program); self.process.setArguments(args)
+        self.process.setProcessEnvironment(_utf8_environment())
         self.process.finished.connect(self._finished); self.process.errorOccurred.connect(lambda _: self._fail("Impossible d’exécuter yt-dlp."))
         self.busy_changed.emit(True); self.process.start()
 

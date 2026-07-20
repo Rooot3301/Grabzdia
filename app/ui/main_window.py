@@ -242,7 +242,7 @@ class MainWindow(QMainWindow):
 
     def _play_job(self, job_id: str) -> None:
         job = self.manager.find(job_id)
-        self._play_file(job.final_path, job.title)
+        self._play_file(DiskService.resolve_media_path(job.final_path, job.destination) or "", job.title)
 
     def _play_file(self, path: str, title: str = "") -> None:
         if not path or not Path(path).is_file():
@@ -358,7 +358,7 @@ class MainWindow(QMainWindow):
     def _report_problem(self) -> None:
         import tempfile
 
-        from app.services.report_service import build_report, issue_url
+        from app.services.report_service import build_report, issue_url, recent_log_excerpt
 
         downloads = Path.home() / "Downloads"
         target_dir = downloads if downloads.is_dir() else Path(tempfile.gettempdir())
@@ -368,7 +368,7 @@ class MainWindow(QMainWindow):
             self._error(f"Impossible de créer le rapport : {error}")
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(zip_path.parent)))
-        QDesktopServices.openUrl(QUrl(issue_url()))
+        QDesktopServices.openUrl(QUrl(issue_url(recent_log_excerpt())))
         self.statusBar().showMessage(f"Rapport créé : {zip_path.name}. Joignez-le au ticket GitHub.", 12000)
 
     def _error(self, message: str) -> None:

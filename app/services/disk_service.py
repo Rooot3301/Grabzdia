@@ -24,6 +24,21 @@ class DiskService:
             return None
 
     @staticmethod
+    def resolve_media_path(final_path: str, destination: str = "") -> str | None:
+        """Return an existing file path for playback.
+
+        Falls back to destination/<filename> when the recorded final_path is
+        missing or points nowhere (e.g. a legacy path corrupted by encoding).
+        """
+        if final_path and Path(final_path).is_file():
+            return final_path
+        if final_path and destination:
+            candidate = Path(destination) / Path(final_path.replace("\\", "/")).name
+            if candidate.is_file():
+                return str(candidate)
+        return None
+
+    @staticmethod
     def human_size(num: int | None) -> str:
         if not num or num < 0:
             return "—"

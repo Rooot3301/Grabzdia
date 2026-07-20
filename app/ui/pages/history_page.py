@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.services.disk_service import DiskService
 from app.services.history_service import HistoryService
 from app.ui.widgets import page_header
 
@@ -127,8 +128,7 @@ class HistoryPage(QWidget):
         entry = self._current_entry()
         if not entry:
             return None
-        final = str(entry.get("final_path", ""))
-        return final if final and Path(final).is_file() else None
+        return DiskService.resolve_media_path(str(entry.get("final_path", "")), str(entry.get("destination", "")))
 
     def _play(self) -> None:
         path = self._playable_path()

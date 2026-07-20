@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
+
+
+def _utf8_environment() -> QProcessEnvironment:
+    """Force yt-dlp to emit UTF-8 so accented paths/titles are decoded correctly."""
+    environment = QProcessEnvironment.systemEnvironment()
+    environment.insert("PYTHONIOENCODING", "utf-8")
+    environment.insert("PYTHONUTF8", "1")
+    return environment
 
 from app.constants import FINAL_PATH_PREFIX, PROGRESS_PREFIX
 from app.models.download_job import DownloadJob, DownloadStatus
@@ -83,6 +91,7 @@ class DownloadRunner(QObject):
         self.process = QProcess(self)
         self.process.setProgram(program)
         self.process.setArguments(arguments)
+        self.process.setProcessEnvironment(_utf8_environment())
         self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(self._read)
         self.process.finished.connect(self._done)
