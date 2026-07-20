@@ -12,7 +12,12 @@ des droits d'auteur, des licences et des conditions des plateformes.
 
 ## Fonctionnalités
 
-- interface à barre latérale, thème sombre, entièrement en français ;
+- interface à barre latérale en français, **thèmes clair/sombre + suivi du
+  thème système** ;
+- **file d'attente persistante** (les téléchargements en attente survivent au
+  redémarrage) ;
+- **progression dans la barre des tâches Windows** ;
+- **nettoyage automatique des logs** de plus de 30 jours ;
 - analyse asynchrone (`yt-dlp --dump-single-json`) : titre, miniature, durée,
   auteur, plateforme et résolution maximale ;
 - vidéo MP4/MKV/WebM avec limites de qualité et préférence de codec ;
