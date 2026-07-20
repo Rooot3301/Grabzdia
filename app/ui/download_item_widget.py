@@ -5,7 +5,6 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushBu
 
 from app.models.download_job import DownloadJob, DownloadStatus
 
-
 STATUS_LABELS = {
     DownloadStatus.QUEUED: "En attente",
     DownloadStatus.RUNNING: "Téléchargement",

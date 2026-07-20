@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+
 from app.exceptions import MetadataExtractionError
 from app.models.media_info import MediaFormat, MediaInfo
 

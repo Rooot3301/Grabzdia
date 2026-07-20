@@ -1,6 +1,6 @@
 [project]
 name = "mediagrab"
-version = "0.1.0"
+version = "1.0.0"
 requires-python = ">=3.12,<3.13"
 dependencies = ["PySide6>=6.8,<7"]
 
@@ -13,8 +13,22 @@ target-version = "py312"
 line-length = 160
 
 [tool.ruff.lint]
-select = ["E9", "F"]
+# High-signal rules that improve quality without forcing a mass reformat of the
+# codebase's existing compact style (E701/E704 statement-on-one-line are omitted
+# on purpose).
+select = ["F", "E9", "W", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
 
 [tool.black]
 target-version = ["py312"]
 line-length = 160
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+ignore_missing_imports = true
+warn_redundant_casts = true
+# Pragmatic baseline for a Qt app: not enforced at build time yet.
+check_untyped_defs = true

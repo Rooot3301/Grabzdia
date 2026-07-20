@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+
 from app.exceptions import BinaryNotFoundError
 from app.utils.paths import binary_dir
 

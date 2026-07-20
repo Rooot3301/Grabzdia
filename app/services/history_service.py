@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+
 from app.utils.atomic_json import read_json, write_json_atomic
 from app.utils.paths import history_path
 

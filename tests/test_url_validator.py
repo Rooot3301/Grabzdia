@@ -1,4 +1,5 @@
 import pytest
+
 from app.exceptions import InvalidUrlError
 from app.utils.url_validator import validate_media_url
 

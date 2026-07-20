@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import sys
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
+
 from app.ui.main_window import MainWindow
 from app.utils.logging_utils import configure_logging
 from app.utils.paths import ensure_app_directories, resource_root

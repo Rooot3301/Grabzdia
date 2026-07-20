@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+
 from app.parsers.metadata_parser import parse_metadata
 
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+
 from app.constants import FINAL_PATH_PREFIX, PROGRESS_PREFIX
 from app.models.download_job import DownloadJob, DownloadStatus
 from app.parsers.progress_parser import parse_progress
@@ -99,7 +101,7 @@ class DownloadRunner(QObject):
                 self.output.emit(raw)
 
     def _done(self, code: int, _status: QProcess.ExitStatus) -> None:
-        self.job.finished_at = datetime.now(timezone.utc).isoformat()
+        self.job.finished_at = datetime.now(UTC).isoformat()
         if self.cancelled:
             self.job.status = DownloadStatus.CANCELLED
             self.failed.emit(self.job.id, "Téléchargement annulé.")

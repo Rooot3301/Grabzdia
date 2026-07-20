@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -25,7 +26,7 @@ def write_json_atomic(path: Path, value: Any) -> None:
             os.fsync(stream.fileno())
         os.replace(name, path)
     except Exception:
-        try: os.unlink(name)
-        except OSError: pass
+        with contextlib.suppress(OSError):
+            os.unlink(name)
         raise
 

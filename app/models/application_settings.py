@@ -28,6 +28,6 @@ class ApplicationSettings:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "ApplicationSettings":
+    def from_dict(cls, value: dict[str, Any]) -> ApplicationSettings:
         allowed = cls.__dataclass_fields__.keys()
         return cls(**{key: value[key] for key in allowed if key in value})

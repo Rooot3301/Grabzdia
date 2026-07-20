@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QProcess, Signal
+
 from app.parsers.metadata_parser import parse_metadata
 from app.services.binary_service import BinaryService
 from app.utils.url_validator import validate_media_url
