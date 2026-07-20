@@ -24,6 +24,8 @@ des droits d'auteur, des licences et des conditions des plateformes.
 - historique et paramètres en JSON atomique ;
 - **téléchargement automatique de yt-dlp et FFmpeg au premier lancement** ;
 - **bouton de mise à jour de yt-dlp** dans les paramètres ;
+- **mise à jour de l'application** depuis les releases GitHub (vérification au
+  démarrage, téléchargement et lancement de l'installateur) ;
 - **notifications natives** de fin de téléchargement ;
 - raccourcis clavier et panneau de logs.
 
@@ -103,6 +105,15 @@ Installez [Inno Setup 6](https://jrsoftware.org/isdl.php), puis :
 
 Le script build l'application, lit la version dans `app/version.py`, puis compile
 `installer\Output\MediaGrab-Setup-<version>.exe`.
+
+### Signature de code
+
+L'exécutable et l'installateur sont signés (Authenticode) au nom de **Root3301**
+via `installer\sign.ps1`, qui crée un certificat auto-signé au premier usage.
+Un certificat auto-signé n'étant pas reconnu par une autorité publique, Windows
+SmartScreen affiche tout de même « éditeur inconnu » ; la signature garantit
+l'intégrité et porte l'identité Root3301. Un certificat commercial est nécessaire
+pour supprimer l'avertissement pour tous les utilisateurs.
 
 ## Dépannage
 

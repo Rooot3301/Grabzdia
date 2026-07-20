@@ -36,4 +36,13 @@ if ($LASTEXITCODE -ne 0) { throw "La compilation de l'installateur a échoué." 
 
 $Output = Join-Path $ProjectRoot "installer\Output\MediaGrab-Setup-$Version.exe"
 if (-not (Test-Path $Output)) { throw "Installateur final introuvable: $Output" }
+
+# Sign the installer (self-signed, best-effort).
+try {
+    & (Join-Path $ProjectRoot "installer\sign.ps1") $Output
+}
+catch {
+    Write-Warning "Signature de l'installateur ignoree: $($_.Exception.Message)"
+}
+
 Write-Host "Installateur cree: $Output"

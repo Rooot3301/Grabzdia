@@ -35,4 +35,13 @@ if (Test-Path $DistPath) { Remove-Item -LiteralPath $DistPath -Recurse -Force }
 & $PythonExe -m PyInstaller --noconfirm mediagrab.spec
 $Result = Join-Path $ProjectRoot "dist\MediaGrab\MediaGrab.exe"
 if (-not (Test-Path $Result)) { throw "L’exécutable final est introuvable." }
+
+# Sign the executable (self-signed, best-effort: do not fail the build).
+try {
+    & (Join-Path $ProjectRoot "installer\sign.ps1") $Result
+}
+catch {
+    Write-Warning "Signature de l'exécutable ignorée: $($_.Exception.Message)"
+}
+
 Write-Host "Build terminé: $Result"

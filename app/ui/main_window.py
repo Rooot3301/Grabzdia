@@ -22,10 +22,13 @@ from app.services.history_service import HistoryService
 from app.services.metadata_service import MetadataService
 from app.services.notification_service import NotificationService
 from app.services.settings_service import SettingsService
+from app.services.update_service import UpdateCheckWorker, is_newer
 from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
+from app.ui.update_dialog import UpdateDialog
 from app.utils.filename import validate_output_template
 from app.utils.paths import app_icon_path, logo_path
+from app.version import __version__
 
 
 class MainWindow(QMainWindow):
@@ -52,6 +55,8 @@ class MainWindow(QMainWindow):
         self._refresh_binary_status()
         self._update_stats()
         self._maybe_auto_update()
+        if self.settings.auto_check_updates:
+            self._check_updates(silent=True)
 
     # ---- construction ------------------------------------------------------
     def _build_ui(self) -> None:
@@ -96,6 +101,7 @@ class MainWindow(QMainWindow):
 
         self.settings_page.saved.connect(self._settings_saved)
         self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
+        self.settings_page.check_updates_requested.connect(lambda: self._check_updates(silent=False))
         self.history_page.redownload_requested.connect(self._redownload)
 
         self.notifications.activated.connect(self._raise_window)
@@ -230,6 +236,28 @@ class MainWindow(QMainWindow):
     def _maybe_auto_update(self) -> None:
         if self.settings.auto_update_ytdlp and "yt-dlp" not in self.binaries.missing():
             self._update_ytdlp()
+
+    def _check_updates(self, silent: bool) -> None:
+        if not silent:
+            self.settings_page.set_check_enabled(False)
+            self.settings_page.set_update_status("Recherche en cours…")
+        worker = UpdateCheckWorker()
+        worker.finished.connect(lambda info, error: self._on_update_checked(info, error, silent))
+        self._update_check_worker = worker
+        self._update_check_thread = start_worker(self, worker)
+
+    def _on_update_checked(self, info: object, error: str, silent: bool) -> None:
+        self.settings_page.set_check_enabled(True)
+        if error or not isinstance(info, dict):
+            if not silent:
+                self.settings_page.set_update_status("Vérification impossible. Réessayez plus tard.")
+            return
+        latest = info.get("version", "")
+        if latest and is_newer(latest, __version__):
+            self.settings_page.set_update_status(f"Nouvelle version disponible : {latest}")
+            UpdateDialog(info, self).exec()
+        elif not silent:
+            self.settings_page.set_update_status(f"MediaGrab est à jour (version {__version__}).")
 
     def _update_ytdlp(self) -> None:
         self.settings_page.set_update_enabled(False)

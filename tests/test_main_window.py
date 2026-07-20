@@ -9,9 +9,11 @@ pytest.importorskip("pytestqt")
 
 
 @pytest.fixture
-def window(qtbot):
+def window(qtbot, monkeypatch):
     from app.ui.main_window import MainWindow
 
+    # Never hit the network for the startup update check during tests.
+    monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
     win = MainWindow()
     qtbot.addWidget(win)
     return win

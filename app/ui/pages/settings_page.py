@@ -20,11 +20,13 @@ from PySide6.QtWidgets import (
 from app.models.application_settings import ApplicationSettings
 from app.ui.widgets import eyebrow_label, page_header
 from app.utils.filename import validate_output_template
+from app.version import __version__
 
 
 class SettingsPage(QWidget):
     saved = Signal()
     update_ytdlp_requested = Signal()
+    check_updates_requested = Signal()
 
     def __init__(self, settings: ApplicationSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -44,6 +46,7 @@ class SettingsPage(QWidget):
         content_layout.addWidget(self._downloads_card())
         content_layout.addWidget(self._components_card())
         content_layout.addWidget(self._notifications_card())
+        content_layout.addWidget(self._application_card())
         content_layout.addStretch()
 
         scroll = QScrollArea()
@@ -152,6 +155,27 @@ class SettingsPage(QWidget):
         layout.addWidget(self.notifications)
         return card
 
+    def _application_card(self) -> QFrame:
+        card = QFrame()
+        card.setObjectName("card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.addWidget(self._section("Application", f"MediaGrab {__version__}"))
+        row = QHBoxLayout()
+        self.update_status = QLabel("")
+        self.update_status.setObjectName("mutedText")
+        self.update_status.setWordWrap(True)
+        row.addWidget(self.update_status, 1)
+        self.check_updates_button = QPushButton("Rechercher des mises à jour")
+        self.check_updates_button.setObjectName("ghostButton")
+        self.check_updates_button.clicked.connect(self.check_updates_requested)
+        row.addWidget(self.check_updates_button)
+        layout.addLayout(row)
+        self.auto_check = QCheckBox("Vérifier les mises à jour au démarrage")
+        self.auto_check.setChecked(self.settings.auto_check_updates)
+        layout.addWidget(self.auto_check)
+        return card
+
     @staticmethod
     def _section(title: str, subtitle: str) -> QWidget:
         widget = QWidget()
@@ -171,6 +195,13 @@ class SettingsPage(QWidget):
     def set_update_enabled(self, enabled: bool) -> None:
         self.update_button.setEnabled(enabled)
         self.update_button.setText("Mise à jour…" if not enabled else "Mettre à jour yt-dlp")
+
+    def set_update_status(self, text: str) -> None:
+        self.update_status.setText(text)
+
+    def set_check_enabled(self, enabled: bool) -> None:
+        self.check_updates_button.setEnabled(enabled)
+        self.check_updates_button.setText("Recherche…" if not enabled else "Rechercher des mises à jour")
 
     def _browse(self) -> None:
         value = QFileDialog.getExistingDirectory(self, "Dossier par défaut", self.folder.text())
@@ -192,6 +223,7 @@ class SettingsPage(QWidget):
         self.settings.use_download_archive = self.archive.isChecked()
         self.settings.notifications = self.notifications.isChecked()
         self.settings.auto_update_ytdlp = self.auto_update.isChecked()
+        self.settings.auto_check_updates = self.auto_check.isChecked()
         self.feedback.setStyleSheet("")
         self.feedback.setText("Paramètres enregistrés")
         self.saved.emit()

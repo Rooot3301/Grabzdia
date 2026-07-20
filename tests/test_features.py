@@ -75,9 +75,10 @@ def test_remembered_options_are_restored(qtbot, tmp_path):
     assert page.format.currentText() == "Opus"
 
 
-def test_redownload_from_history_builds_job(qtbot):
+def test_redownload_from_history_builds_job(qtbot, monkeypatch):
     from app.ui.main_window import MainWindow
 
+    monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
     win = MainWindow()
     qtbot.addWidget(win)
     entry = {
