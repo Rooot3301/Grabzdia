@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -32,10 +33,30 @@ class DiskService:
         """
         if final_path and Path(final_path).is_file():
             return final_path
-        if final_path and destination:
-            candidate = Path(destination) / Path(final_path.replace("\\", "/")).name
-            if candidate.is_file():
-                return str(candidate)
+        if not final_path:
+            return None
+        name = Path(final_path.replace("\\", "/")).name
+        search_dirs = [destination, str(Path(final_path.replace("\\", "/")).parent)]
+        # 1) same file name in a candidate directory
+        for directory in search_dirs:
+            if directory:
+                candidate = Path(directory) / name
+                if candidate.is_file():
+                    return str(candidate)
+        # 2) match by the yt-dlp id token (e.g. "[nWm_OhIKms8]"), which survives
+        #    filename sanitisation differences
+        match = re.search(r"\[[A-Za-z0-9_-]{6,}\]", name)
+        if match:
+            token = match.group(0)
+            for directory in search_dirs:
+                folder = Path(directory) if directory else None
+                if folder and folder.is_dir():
+                    try:
+                        for entry in folder.iterdir():
+                            if entry.is_file() and token in entry.name:
+                                return str(entry)
+                    except OSError:
+                        continue
         return None
 
     @staticmethod
