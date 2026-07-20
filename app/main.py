@@ -7,6 +7,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+from app.services.binary_service import BinaryService
+from app.services.bootstrap_service import components_for
+from app.ui.first_run_dialog import FirstRunDialog
 from app.ui.main_window import MainWindow
 from app.utils.logging_utils import configure_logging
 from app.utils.paths import (
@@ -24,6 +27,14 @@ def _application_icon() -> QIcon:
     return QIcon(str(logo_path()))
 
 
+def _run_first_run_if_needed() -> None:
+    missing = BinaryService().missing()
+    if not missing:
+        return
+    logging.info("Composants manquants au démarrage : %s", ", ".join(missing))
+    FirstRunDialog(components_for(missing)).exec()
+
+
 def main() -> int:
     ensure_app_directories()
     configure_logging()
@@ -36,6 +47,7 @@ def main() -> int:
     style = stylesheet_path()
     if style.exists():
         application.setStyleSheet(style.read_text(encoding="utf-8"))
+    _run_first_run_if_needed()
     window = MainWindow()
     window.show()
     return application.exec()

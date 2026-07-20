@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
 from app.models.download_job import DownloadJob, DownloadStatus
 from app.models.media_info import MediaInfo
 from app.services.binary_service import BinaryService
+from app.services.bootstrap_service import COMPONENTS
+from app.services.bootstrap_worker import BootstrapWorker, start_worker
 from app.services.disk_service import DiskService
 from app.services.download_service import DownloadManager
 from app.services.history_service import HistoryService
@@ -86,6 +88,7 @@ class MainWindow(QMainWindow):
         self.manager.job_finished.connect(self._job_finished)
 
         self.settings_page.saved.connect(self._settings_saved)
+        self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
 
     def _shortcuts(self) -> None:
         shortcuts = {
@@ -170,6 +173,23 @@ class MainWindow(QMainWindow):
         else:
             self.sidebar.set_status("Composants prêts", "ok")
             self.settings_page.set_component_status("yt-dlp et FFmpeg sont installés et prêts.")
+
+    def _update_ytdlp(self) -> None:
+        self.settings_page.set_update_enabled(False)
+        worker = BootstrapWorker([COMPONENTS["yt-dlp"]])
+        worker.progress.connect(lambda percent: self.settings_page.set_component_status(f"Téléchargement de yt-dlp… {percent} %"))
+        worker.finished.connect(self._ytdlp_updated)
+        self._update_worker = worker
+        self._update_thread = start_worker(self, worker)
+
+    def _ytdlp_updated(self, success: bool, message: str) -> None:
+        self.settings_page.set_update_enabled(True)
+        if success:
+            self._refresh_binary_status()
+            self.statusBar().showMessage("yt-dlp mis à jour.", 4000)
+        else:
+            self.settings_page.set_component_status(message)
+            self._error(message)
 
     def _error(self, message: str) -> None:
         QMessageBox.warning(self, "MediaGrab", message)
