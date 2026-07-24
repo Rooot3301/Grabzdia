@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from app.services.binary_service import BinaryService
 from app.services.bootstrap_service import components_for
+from app.services.migration_service import run_migration
 from app.services.settings_service import SettingsService
 from app.ui.first_run_dialog import FirstRunDialog
 from app.ui.main_window import MainWindow
@@ -37,6 +38,7 @@ def _run_first_run_if_needed() -> None:
 
 
 def main() -> int:
+    run_migration()
     ensure_app_directories()
     configure_logging()
     logging.info("Démarrage de Grabzdia")
