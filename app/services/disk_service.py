@@ -78,7 +78,7 @@ class DiskService:
         except OSError as error: raise InvalidDestinationError("Impossible de créer le dossier de destination.") from error
         if not path.is_dir(): raise InvalidDestinationError("La destination n’est pas un dossier.")
         try:
-            probe = path / f".mediagrab-write-{os.getpid()}"
+            probe = path / f".grabzdia-write-{os.getpid()}"
             probe.touch(exist_ok=False); probe.unlink()
         except OSError as error: raise InvalidDestinationError("Le dossier n’est pas accessible en écriture.") from error
         if expected_size and shutil.disk_usage(path).free < int(expected_size * 1.1):

@@ -36,7 +36,7 @@ class SettingsPage(QWidget):
 
         header = page_header(
             "Paramètres",
-            "Personnalisez le comportement de MediaGrab. Tout est enregistré localement.",
+            "Personnalisez le comportement de Grabzdia. Tout est enregistré localement.",
             eyebrow="Préférences",
         )
 
@@ -169,7 +169,7 @@ class SettingsPage(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 18, 20, 18)
         header_row = QHBoxLayout()
-        header_row.addWidget(self._section("Application", f"MediaGrab {__version__}"), 1)
+        header_row.addWidget(self._section("Application", f"Grabzdia {__version__}"), 1)
         about_button = QPushButton("À propos")
         about_button.setObjectName("ghostButton")
         about_button.clicked.connect(self.about_requested)

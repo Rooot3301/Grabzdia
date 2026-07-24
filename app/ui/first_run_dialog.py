@@ -33,14 +33,14 @@ class FirstRunDialog(QDialog):
         layout.setSpacing(12)
 
         layout.addWidget(eyebrow_label("Première utilisation"))
-        title = QLabel("Installer les composants de MediaGrab")
+        title = QLabel("Installer les composants de Grabzdia")
         title.setObjectName("pageTitle")
         title.setWordWrap(True)
         layout.addWidget(title)
 
         names = ", ".join(component.label for component in components)
         intro = QLabel(
-            f"MediaGrab a besoin de {names} pour analyser et télécharger des médias. "
+            f"Grabzdia a besoin de {names} pour analyser et télécharger des médias. "
             "Ils seront récupérés depuis leurs sources officielles (~40 à 90 Mo) et "
             "installés dans votre dossier utilisateur. Une connexion Internet est requise."
         )

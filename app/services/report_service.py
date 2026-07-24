@@ -17,7 +17,7 @@ from app.version import __version__
 
 
 def system_summary() -> str:
-    return f"MediaGrab {__version__}\nOS: {platform.platform()}\nPython: {sys.version.split()[0]}\n"
+    return f"Grabzdia {__version__}\nOS: {platform.platform()}\nPython: {sys.version.split()[0]}\n"
 
 
 def recent_log_excerpt(max_chars: int = 1500) -> str:
@@ -41,7 +41,7 @@ def build_report(dest_dir: Path, max_logs: int = 5, stamp: str | None = None) ->
     logs_dir = local_appdata_dir() / "logs"
     logs = sorted(logs_dir.glob("session-*.log"), reverse=True)[:max_logs] if logs_dir.is_dir() else []
     stamp = stamp or datetime.now().strftime("%Y%m%d-%H%M%S")
-    zip_path = dest_dir / f"mediagrab-report-{stamp}.zip"
+    zip_path = dest_dir / f"grabzdia-report-{stamp}.zip"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("system.txt", system_summary())
         for log in logs:
@@ -54,7 +54,7 @@ def build_report(dest_dir: Path, max_logs: int = 5, stamp: str | None = None) ->
 
 
 def issue_url(log_excerpt: str = "") -> str:
-    title = f"[Bug] MediaGrab {__version__} : "
+    title = f"[Bug] Grabzdia {__version__} : "
     body = (
         "Décrivez le problème :\n\n\n"
         "Étapes pour reproduire :\n1. \n2. \n\n"
@@ -65,6 +65,6 @@ def issue_url(log_excerpt: str = "") -> str:
             "\n<details><summary>Logs récents (anonymisés)</summary>\n\n"
             f"```\n{log_excerpt}\n```\n</details>\n"
         )
-    body += "\n_Rapport complet joint : mediagrab-report-*.zip (dans le dossier Téléchargements)._"
+    body += "\n_Rapport complet joint : grabzdia-report-*.zip (dans le dossier Téléchargements)._"
     params = urllib.parse.urlencode({"title": title, "body": body})
     return f"https://github.com/{GITHUB_REPO}/issues/new?{params}"

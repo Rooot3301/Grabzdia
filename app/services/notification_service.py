@@ -19,7 +19,7 @@ class NotificationService(QObject):
         self.tray: QSystemTrayIcon | None = None
         if QSystemTrayIcon.isSystemTrayAvailable():
             self.tray = QSystemTrayIcon(icon, parent)
-            self.tray.setToolTip("MediaGrab")
+            self.tray.setToolTip("Grabzdia")
             self.tray.activated.connect(lambda _reason: self.activated.emit())
             self.tray.messageClicked.connect(self.activated)
             self.tray.show()

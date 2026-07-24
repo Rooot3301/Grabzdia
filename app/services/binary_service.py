@@ -20,7 +20,7 @@ class BinaryService:
         found = shutil.which(filename) or shutil.which(name)
         if found:
             return Path(found)
-        raise BinaryNotFoundError(f"{filename} est introuvable. Ouvrez MediaGrab pour télécharger les composants.")
+        raise BinaryNotFoundError(f"{filename} est introuvable. Ouvrez Grabzdia pour télécharger les composants.")
 
     def status(self) -> dict[str, str]:
         result = {}

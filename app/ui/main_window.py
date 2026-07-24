@@ -40,7 +40,7 @@ from app.version import __version__
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("MediaGrab")
+        self.setWindowTitle("Grabzdia")
         self.resize(1080, 900)
         self.setMinimumSize(900, 680)
 
@@ -335,7 +335,7 @@ class MainWindow(QMainWindow):
             self.settings_page.set_update_status(f"Nouvelle version disponible : {latest}")
             UpdateDialog(info, self).exec()
         elif not silent:
-            self.settings_page.set_update_status(f"MediaGrab est à jour (version {__version__}).")
+            self.settings_page.set_update_status(f"Grabzdia est à jour (version {__version__}).")
 
     def _update_ytdlp(self) -> None:
         self.settings_page.set_update_enabled(False)
@@ -380,7 +380,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Rapport créé : {zip_path.name}. Joignez-le au ticket GitHub.", 12000)
 
     def _error(self, message: str) -> None:
-        QMessageBox.warning(self, "MediaGrab", message)
+        QMessageBox.warning(self, "Grabzdia", message)
         self.download_page.write_log(message)
 
     # ---- drag & drop -------------------------------------------------------

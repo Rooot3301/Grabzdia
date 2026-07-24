@@ -57,14 +57,14 @@ class UpdateDialog(QDialog):
         layout.setContentsMargins(28, 26, 28, 22)
         layout.setSpacing(12)
         layout.addWidget(eyebrow_label("Mise à jour"))
-        title = QLabel(f"MediaGrab {info.get('version', '')} est disponible")
+        title = QLabel(f"Grabzdia {info.get('version', '')} est disponible")
         title.setObjectName("pageTitle")
         title.setWordWrap(True)
         layout.addWidget(title)
 
         intro = QLabel(
             "Une nouvelle version est publiée sur GitHub. Découvrez les nouveautés "
-            "ci-dessous, puis téléchargez et installez si vous le souhaitez (MediaGrab "
+            "ci-dessous, puis téléchargez et installez si vous le souhaitez (Grabzdia "
             "se fermera pour laisser l’installateur terminer)."
         )
         intro.setObjectName("mutedText")
@@ -124,7 +124,7 @@ class UpdateDialog(QDialog):
         self.later_button.setEnabled(False)
         self.bar.setVisible(True)
         self.status.setText("Téléchargement de l’installateur…")
-        target = Path(tempfile.gettempdir()) / f"MediaGrab-Setup-{self.info.get('version', 'latest')}.exe"
+        target = Path(tempfile.gettempdir()) / f"Grabzdia-Setup-{self.info.get('version', 'latest')}.exe"
         self._worker = InstallerDownloadWorker(asset, target)
         self._worker.progress.connect(self.bar.setValue)
         self._worker.finished.connect(self._downloaded)

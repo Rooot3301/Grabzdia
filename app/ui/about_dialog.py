@@ -18,16 +18,16 @@ from app.utils.paths import logo_path
 from app.version import __version__
 
 _THIRD_PARTY = """
-MediaGrab s'appuie sur des composants tiers, téléchargés depuis leurs sources
+Grabzdia s'appuie sur des composants tiers, téléchargés depuis leurs sources
 officielles et soumis à leurs propres licences :
 
 - **yt-dlp** — licence *Unlicense* (domaine public) — https://github.com/yt-dlp/yt-dlp
 - **FFmpeg** — licences *LGPL v2.1+ / GPL* selon la build — https://ffmpeg.org/legal.html
 - **Qt for Python (PySide6)** — licence *LGPL v3* — https://www.qt.io/licensing
 
-MediaGrab lui-même est distribué sous licence **MIT** (Dev by Root3301).
+Grabzdia lui-même est distribué sous licence **MIT** (Dev by Root3301).
 
-Utilisez MediaGrab uniquement pour des contenus que vous êtes autorisé à
+Utilisez Grabzdia uniquement pour des contenus que vous êtes autorisé à
 télécharger. Le logiciel ne contourne ni DRM ni protection d'accès.
 """
 
@@ -37,7 +37,7 @@ class AboutDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("À propos de MediaGrab")
+        self.setWindowTitle("À propos de Grabzdia")
         self.setModal(True)
         self.setMinimumWidth(500)
 
@@ -53,7 +53,7 @@ class AboutDialog(QDialog):
         header.addWidget(mark)
         heading = QVBoxLayout()
         heading.setSpacing(2)
-        name = QLabel("MediaGrab")
+        name = QLabel("Grabzdia")
         name.setObjectName("pageTitle")
         version = QLabel(f"Version {__version__}")
         version.setObjectName("mutedText")
