@@ -27,9 +27,9 @@ def test_is_newer_false_when_equal_or_older():
 def test_select_installer_asset_picks_github_exe():
     assets = [
         {"name": "notes.txt", "browser_download_url": "https://github.com/x/y/releases/download/v1/notes.txt"},
-        {"name": "MediaGrab-Setup-1.1.0.exe", "browser_download_url": "https://github.com/x/y/releases/download/v1/MediaGrab-Setup-1.1.0.exe"},
+        {"name": "Grabzdia-Setup-1.1.0.exe", "browser_download_url": "https://github.com/x/y/releases/download/v1/Grabzdia-Setup-1.1.0.exe"},
     ]
-    assert select_installer_asset(assets).endswith("MediaGrab-Setup-1.1.0.exe")
+    assert select_installer_asset(assets).endswith("Grabzdia-Setup-1.1.0.exe")
 
 
 def test_select_installer_asset_none_when_no_exe():

@@ -29,7 +29,7 @@ def test_build_report_redacts_and_zips(tmp_path, monkeypatch):
 
 def test_issue_url_points_to_repo():
     url = issue_url()
-    assert url.startswith("https://github.com/Rooot3301/MediaGrab/issues/new?")
+    assert url.startswith("https://github.com/Rooot3301/Grabzdia/issues/new?")
     assert "title=" in url and "body=" in url
 
 
