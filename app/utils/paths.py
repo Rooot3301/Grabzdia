@@ -23,7 +23,7 @@ def managed_binary_dir() -> Path:
 
 
 def default_download_dir() -> Path:
-    return Path.home() / "Downloads" / "MediaGrab"
+    return Path.home() / "Downloads" / "Grabzdia"
 
 
 def resource_root() -> Path:
