@@ -1,12 +1,34 @@
 from __future__ import annotations
 
+from app.models.application_settings import ApplicationSettings
 from app.services.update_service import (
+    _parse_release,
     choose_update,
     is_newer,
     is_prerelease,
     select_installer_asset,
     version_key,
 )
+
+
+def test_update_channel_defaults_to_live():
+    assert ApplicationSettings.from_dict({}).update_channel == "live"
+
+
+def test_parse_release_extracts_fields():
+    data = {
+        "tag_name": "v1.1.0-evo.2",
+        "prerelease": True,
+        "html_url": "https://github.com/Rooot3301/Grabzdia/releases/tag/v1.1.0-evo.2",
+        "body": "notes",
+        "assets": [{"name": "Grabzdia-Setup-1.1.0-evo.2.exe",
+                    "browser_download_url": "https://github.com/Rooot3301/Grabzdia/releases/download/x/Grabzdia-Setup-1.1.0-evo.2.exe"}],
+    }
+    parsed = _parse_release(data)
+    assert parsed["version"] == "v1.1.0-evo.2"
+    assert parsed["prerelease"] is True
+    assert parsed["asset"].endswith(".exe")
+    assert parsed["notes"] == "notes"
 
 
 def test_version_key_strips_prefix_and_splits():

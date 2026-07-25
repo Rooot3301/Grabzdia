@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 from PySide6.QtCore import QObject, Signal
 
-from app.constants import GITHUB_LATEST_RELEASE_API
+from app.constants import GITHUB_RELEASES_API
 
 
 def _is_trusted_asset(url: str) -> bool:
@@ -89,25 +89,30 @@ def select_installer_asset(assets: list[dict[str, Any]]) -> str | None:
     return None
 
 
-class UpdateCheckWorker(QObject):
-    """Fetches the latest release metadata from GitHub off the UI thread."""
+def _parse_release(data: dict) -> dict:
+    return {
+        "version": str(data.get("tag_name", "")),
+        "prerelease": bool(data.get("prerelease", False)),
+        "page": str(data.get("html_url", "")),
+        "notes": str(data.get("body", "")),
+        "asset": select_installer_asset(data.get("assets", []) or []),
+    }
 
-    finished = Signal(object, str)  # release info dict (or None), error message
+
+class UpdateCheckWorker(QObject):
+    """Récupère la liste des releases GitHub hors du thread UI."""
+
+    finished = Signal(object, str)  # list[dict] (ou None), message d'erreur
 
     def run(self) -> None:
         try:
             request = urllib.request.Request(
-                GITHUB_LATEST_RELEASE_API,
+                GITHUB_RELEASES_API,
                 headers={"User-Agent": "Grabzdia", "Accept": "application/vnd.github+json"},
             )
             with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310 (fixed https host)
                 data = json.load(response)
-            info = {
-                "version": str(data.get("tag_name", "")),
-                "page": str(data.get("html_url", "")),
-                "notes": str(data.get("body", "")),
-                "asset": select_installer_asset(data.get("assets", []) or []),
-            }
-            self.finished.emit(info, "")
+            releases = [_parse_release(entry) for entry in data] if isinstance(data, list) else []
+            self.finished.emit(releases, "")
         except Exception as error:  # noqa: BLE001 (report any failure to the UI)
             self.finished.emit(None, str(error))
