@@ -38,10 +38,12 @@ def _run_first_run_if_needed() -> None:
 
 
 def main() -> int:
-    run_migration()
+    migrated = run_migration()
     ensure_app_directories()
     configure_logging()
     logging.info("Démarrage de Grabzdia")
+    if migrated:
+        logging.info("Données migrées depuis MediaGrab au premier lancement de Grabzdia.")
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     application = QApplication(sys.argv)
     application.setApplicationName("Grabzdia")
