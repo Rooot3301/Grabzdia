@@ -1,6 +1,6 @@
 # Publier une release
 
-MediaGrab a deux canaux de diffusion, alimentés par les Releases GitHub :
+Grabzdia a deux canaux de diffusion, alimentés par les Releases GitHub :
 
 - **LIVE (stable)** : releases normales, taguées `vX.Y.Z` sur `main`.
 - **EVO (beta)** : pre-releases, taguées `vX.Y.Z-evo.N` sur `evocati`.
@@ -18,7 +18,7 @@ git push origin v1.1.0-evo.1
 ```
 
 Le workflow `release.yml` build l'installateur et publie une **pre-release**
-`v1.1.0-evo.1` avec `MediaGrab-Setup-1.1.0-evo.1.exe` en asset.
+`v1.1.0-evo.1` avec `Grabzdia-Setup-1.1.0-evo.1.exe` en asset.
 
 ## Promouvoir en LIVE (stable)
 

@@ -1,11 +1,11 @@
-# MediaGrab
+# Grabzdia
 
-MediaGrab est une application Windows locale (Python 3.12 + PySide6) qui analyse
+Grabzdia est une application Windows locale (Python 3.12 + PySide6) qui analyse
 une URL compatible avec yt-dlp, télécharge une vidéo ou en extrait l'audio, et
 enregistre le fichier dans le dossier de votre choix. Aucun compte, serveur
 distant ni système de télémétrie : tout se passe sur votre machine.
 
-Utilisez MediaGrab uniquement pour les contenus que vous êtes autorisé à
+Utilisez Grabzdia uniquement pour les contenus que vous êtes autorisé à
 télécharger. Le logiciel ne contourne ni les DRM, ni les abonnements, ni les
 protections d'accès ou d'authentification. Vous restez responsable du respect
 des droits d'auteur, des licences et des conditions des plateformes.
@@ -44,28 +44,28 @@ puis Relancer permet à yt-dlp de reprendre.
 
 ## Installation (utilisateur)
 
-Téléchargez `MediaGrab-Setup-<version>.exe` puis lancez-le. L'installateur crée
+Téléchargez `Grabzdia-Setup-<version>.exe` puis lancez-le. L'installateur crée
 les raccourcis et un désinstalleur ; aucune permission administrateur n'est
 requise (installation par utilisateur).
 
-Au **premier démarrage**, MediaGrab propose de télécharger `yt-dlp` et `FFmpeg`
+Au **premier démarrage**, Grabzdia propose de télécharger `yt-dlp` et `FFmpeg`
 (~40 à 90 Mo) depuis leurs sources officielles vers votre dossier utilisateur.
 Une connexion Internet est nécessaire à ce moment-là uniquement.
 
 > **Avertissement Windows au lancement du setup ?** Windows SmartScreen peut
 > afficher « Windows a protégé votre ordinateur / Éditeur inconnu ». C'est
-> normal : MediaGrab est open-source et n'est pas signé par un certificat
+> normal : Grabzdia est open-source et n'est pas signé par un certificat
 > commercial. Cliquez sur **« Informations complémentaires »** puis
 > **« Exécuter quand même »**.
 
 ## Données locales
 
-- paramètres : `%APPDATA%\MediaGrab\settings.json`
-- historique : `%APPDATA%\MediaGrab\history.json`
-- archive : `%APPDATA%\MediaGrab\download_archive.txt`
-- composants : `%LOCALAPPDATA%\MediaGrab\bin\`
-- logs : `%LOCALAPPDATA%\MediaGrab\logs\`
-- destination initiale : `%USERPROFILE%\Downloads\MediaGrab`
+- paramètres : `%APPDATA%\Grabzdia\settings.json`
+- historique : `%APPDATA%\Grabzdia\history.json`
+- archive : `%APPDATA%\Grabzdia\download_archive.txt`
+- composants : `%LOCALAPPDATA%\Grabzdia\bin\`
+- logs : `%LOCALAPPDATA%\Grabzdia\logs\`
+- destination initiale : `%USERPROFILE%\Downloads\Grabzdia`
 
 Les paramètres et l'historique sont écrits par remplacement atomique. Les
 cookies ne sont pas stockés et les secrets usuels sont masqués dans les logs.
@@ -107,7 +107,7 @@ python assets\make_icon.py
 
 Le script prépare l'environnement, installe les dépendances, régénère l'icône si
 besoin, lance Ruff et pytest, nettoie `build/` et `dist/`, puis produit
-`dist\MediaGrab\MediaGrab.exe`. Le build s'arrête si une validation échoue. Les
+`dist\Grabzdia\Grabzdia.exe`. Le build s'arrête si une validation échoue. Les
 binaires yt-dlp/FFmpeg ne sont **pas** embarqués (ils sont téléchargés au
 premier lancement).
 
@@ -120,7 +120,7 @@ Installez [Inno Setup 6](https://jrsoftware.org/isdl.php), puis :
 ```
 
 Le script build l'application, lit la version dans `app/version.py`, puis compile
-`installer\Output\MediaGrab-Setup-<version>.exe`.
+`installer\Output\Grabzdia-Setup-<version>.exe`.
 
 ### Signature de code
 
@@ -148,7 +148,7 @@ machine concernée.
 
 - **téléchargement des composants échoué** : vérifiez votre connexion, puis
   réessayez depuis Paramètres → Composants ;
-- **contenu privé ou indisponible** : MediaGrab ne tente pas de contourner
+- **contenu privé ou indisponible** : Grabzdia ne tente pas de contourner
   l'accès ;
 - **destination inaccessible** : choisissez un dossier existant où votre compte
   peut écrire ;
@@ -158,7 +158,7 @@ machine concernée.
 
 ## Licence
 
-MediaGrab est distribué sous licence **MIT** (Dev by Root3301) — voir
+Grabzdia est distribué sous licence **MIT** (Dev by Root3301) — voir
 [LICENSE](LICENSE). yt-dlp et FFmpeg, téléchargés au premier lancement, restent
 soumis à leurs licences respectives.
 

@@ -2,13 +2,13 @@
 
 ## Signaler une vulnérabilité
 
-Ouvrez un ticket sur https://github.com/Rooot3301/MediaGrab/issues (ou utilisez
+Ouvrez un ticket sur https://github.com/Rooot3301/Grabzdia/issues (ou utilisez
 le bouton **Paramètres → Signaler un problème** dans l'application, qui joint des
 logs anonymisés). Merci de décrire l'impact et les étapes de reproduction.
 
 ## Posture de sécurité
 
-MediaGrab est conçu pour être sûr et respectueux de la vie privée :
+Grabzdia est conçu pour être sûr et respectueux de la vie privée :
 
 - **100 % local** : aucun compte, aucun serveur applicatif, aucune télémétrie.
 - **Aucune exécution shell** : les binaires externes (yt-dlp, FFmpeg) sont
@@ -17,7 +17,7 @@ MediaGrab est conçu pour être sûr et respectueux de la vie privée :
   désérialisation dangereuse.
 - **Réseau restreint** : les composants et les mises à jour sont téléchargés en
   **HTTPS** depuis des hôtes officiels fixes (releases GitHub de yt-dlp et de
-  MediaGrab, builds FFmpeg de gyan.dev). L'installateur de mise à jour n'est
+  Grabzdia, builds FFmpeg de gyan.dev). L'installateur de mise à jour n'est
   accepté que s'il provient d'un hôte GitHub en HTTPS.
 - **URL validées** : seules les URL HTTP/HTTPS sont acceptées ; les adresses
   locales/privées et les identifiants intégrés sont rejetés (anti-SSRF). Les
