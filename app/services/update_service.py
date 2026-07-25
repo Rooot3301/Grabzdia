@@ -1,4 +1,4 @@
-"""Check GitHub Releases for a newer version of MediaGrab.
+"""Check GitHub Releases for a newer version of Grabzdia.
 
 The pure helpers (version parsing/comparison, asset selection) are unit-tested;
 the worker performs the network call off the UI thread.
@@ -56,7 +56,7 @@ class UpdateCheckWorker(QObject):
         try:
             request = urllib.request.Request(
                 GITHUB_LATEST_RELEASE_API,
-                headers={"User-Agent": "MediaGrab", "Accept": "application/vnd.github+json"},
+                headers={"User-Agent": "Grabzdia", "Accept": "application/vnd.github+json"},
             )
             with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310 (fixed https host)
                 data = json.load(response)

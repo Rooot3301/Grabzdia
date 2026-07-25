@@ -1,4 +1,4 @@
-"""MediaGrab application package."""
+"""Grabzdia application package."""
 
 from app.version import __version__
 
