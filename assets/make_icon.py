@@ -1,4 +1,4 @@
-"""Generate assets/MediaGrab.ico from assets/logo.svg.
+"""Generate assets/Grabzdia.ico from assets/logo.svg.
 
 Rasterizes the SVG logo to several sizes with PySide6 (no extra dependency)
 and packs them into a multi-resolution Windows .ico file (PNG-compressed
@@ -53,7 +53,7 @@ def build_ico(pngs: list[tuple[int, bytes]]) -> bytes:
 def main() -> int:
     root = Path(__file__).resolve().parent
     svg = root / "logo.svg"
-    target = root / "MediaGrab.ico"
+    target = root / "Grabzdia.ico"
     app = QGuiApplication.instance() or QGuiApplication(sys.argv)
     _ = app  # keep the application alive while rendering
     renderer = QSvgRenderer(str(svg))
