@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $ProjectRoot
 
-# 1. Build the application (validates lint + tests, produces dist\MediaGrab).
+# 1. Build the application (validates lint + tests, produces dist\Grabzdia).
 & (Join-Path $ProjectRoot "build.ps1")
 if ($LASTEXITCODE -ne 0) { throw "Le build de l'application a échoué." }
 
@@ -30,11 +30,11 @@ if (-not $Iscc) {
 }
 
 # 4. Compile the installer.
-$Iss = Join-Path $ProjectRoot "installer\MediaGrab.iss"
+$Iss = Join-Path $ProjectRoot "installer\Grabzdia.iss"
 & $Iscc "/DMyAppVersion=$Version" $Iss
 if ($LASTEXITCODE -ne 0) { throw "La compilation de l'installateur a échoué." }
 
-$Output = Join-Path $ProjectRoot "installer\Output\MediaGrab-Setup-$Version.exe"
+$Output = Join-Path $ProjectRoot "installer\Output\Grabzdia-Setup-$Version.exe"
 if (-not (Test-Path $Output)) { throw "Installateur final introuvable: $Output" }
 
 # Sign the installer (self-signed, best-effort).

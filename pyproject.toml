@@ -1,5 +1,5 @@
 [project]
-name = "mediagrab"
+name = "grabzdia"
 # Champ de packaging statique uniquement. La version d'exécution — source unique,
 # alignée sur le tag de release par tools/set_version.py — vit dans app/version.py.
 # Ne pas éditer à la main pour suivre les releases : rien ici ne consomme ce champ

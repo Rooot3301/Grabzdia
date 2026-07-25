@@ -18,7 +18,7 @@ if (-not (Test-Path $PythonExe)) {
 if ($LASTEXITCODE -ne 0) { throw "L’installation des dépendances a échoué." }
 
 # Regenerate the application icon from the SVG source if it is missing.
-if (-not (Test-Path (Join-Path $ProjectRoot "assets\MediaGrab.ico"))) {
+if (-not (Test-Path (Join-Path $ProjectRoot "assets\Grabzdia.ico"))) {
     & $PythonExe (Join-Path $ProjectRoot "assets\make_icon.py")
     if ($LASTEXITCODE -ne 0) { throw "La génération de l’icône a échoué." }
 }
@@ -32,8 +32,8 @@ $DistPath = [IO.Path]::GetFullPath((Join-Path $ProjectRoot "dist"))
 if (-not $BuildPath.StartsWith([IO.Path]::GetFullPath($ProjectRoot)) -or -not $DistPath.StartsWith([IO.Path]::GetFullPath($ProjectRoot))) { throw "Chemins de build non sûrs." }
 if (Test-Path $BuildPath) { Remove-Item -LiteralPath $BuildPath -Recurse -Force }
 if (Test-Path $DistPath) { Remove-Item -LiteralPath $DistPath -Recurse -Force }
-& $PythonExe -m PyInstaller --noconfirm mediagrab.spec
-$Result = Join-Path $ProjectRoot "dist\MediaGrab\MediaGrab.exe"
+& $PythonExe -m PyInstaller --noconfirm grabzdia.spec
+$Result = Join-Path $ProjectRoot "dist\Grabzdia\Grabzdia.exe"
 if (-not (Test-Path $Result)) { throw "L’exécutable final est introuvable." }
 
 # Sign the executable (self-signed, best-effort: do not fail the build).

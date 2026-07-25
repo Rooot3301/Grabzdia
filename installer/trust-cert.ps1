@@ -1,5 +1,5 @@
 # Installe le certificat auto-signe Root3301 comme editeur de confiance SUR CETTE
-# MACHINE, afin que les binaires MediaGrab signes soient reconnus ici (supprime
+# MACHINE, afin que les binaires Grabzdia signes soient reconnus ici (supprime
 # l'avertissement "editeur inconnu" pour la signature sur ce PC).
 #
 # Ne concerne QUE la machine ou on l'execute. Necessite les droits admin.
@@ -42,4 +42,4 @@ Write-Host ""
 Write-Host "OK: Root3301 est maintenant un editeur de confiance sur cette machine."
 Write-Host "Si l'installateur vient d'Internet, debloquez-le une fois:"
 Write-Host "    clic droit > Proprietes > cocher 'Debloquer', ou"
-Write-Host "    Unblock-File 'C:\chemin\MediaGrab-Setup-1.0.1.exe'"
+Write-Host "    Unblock-File 'C:\chemin\Grabzdia-Setup-1.0.1.exe'"
