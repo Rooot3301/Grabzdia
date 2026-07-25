@@ -19,6 +19,7 @@ class ApplicationSettings:
     filename_template: str = "%(title)s [%(id)s].%(ext)s"
     auto_update_ytdlp: bool = False
     auto_check_updates: bool = True
+    update_channel: str = "live"
     # Remembered output options (restored on next launch).
     last_mode: str = "video"
     last_quality: str = "1080p"

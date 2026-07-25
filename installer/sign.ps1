@@ -1,4 +1,4 @@
-# Self-signed Authenticode signing for MediaGrab (name: Root3301).
+# Self-signed Authenticode signing for Grabzdia (name: Root3301).
 #
 # Signs the files passed as arguments with a self-signed code-signing
 # certificate (created on first use, stored in the current user's store).

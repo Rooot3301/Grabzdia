@@ -7,7 +7,7 @@ root = Path(SPECPATH)
 # per-user directory, so they are intentionally NOT bundled here. Only the
 # application and its assets ship in the distribution.
 datas = [(str(root / "assets"), "assets")]
-icon = root / "assets" / "MediaGrab.ico"
+icon = root / "assets" / "Grabzdia.ico"
 
 a = Analysis(
     ["app/main.py"],
@@ -25,7 +25,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="MediaGrab",
+    name="Grabzdia",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -33,4 +33,4 @@ exe = EXE(
     console=False,
     icon=str(icon) if icon.exists() else None,
 )
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=True, name="MediaGrab")
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=True, name="Grabzdia")

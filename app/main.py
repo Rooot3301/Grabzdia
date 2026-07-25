@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from app.services.binary_service import BinaryService
 from app.services.bootstrap_service import components_for
+from app.services.migration_service import run_migration
 from app.services.settings_service import SettingsService
 from app.ui.first_run_dialog import FirstRunDialog
 from app.ui.main_window import MainWindow
@@ -37,13 +38,16 @@ def _run_first_run_if_needed() -> None:
 
 
 def main() -> int:
+    migrated = run_migration()
     ensure_app_directories()
     configure_logging()
-    logging.info("Démarrage de MediaGrab")
+    logging.info("Démarrage de Grabzdia")
+    if migrated:
+        logging.info("Données migrées depuis MediaGrab au premier lancement de Grabzdia.")
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     application = QApplication(sys.argv)
-    application.setApplicationName("MediaGrab")
-    application.setOrganizationName("MediaGrab")
+    application.setApplicationName("Grabzdia")
+    application.setOrganizationName("Grabzdia")
     application.setWindowIcon(_application_icon())
     apply_theme(application, SettingsService().load().theme)
     _run_first_run_if_needed()

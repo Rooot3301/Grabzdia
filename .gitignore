@@ -10,3 +10,5 @@ bin/*.exe
 installer/Output/
 *.log
 
+# Docs de conception internes (non publiés)
+docs/superpowers/

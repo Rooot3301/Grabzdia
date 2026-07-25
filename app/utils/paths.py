@@ -6,11 +6,11 @@ from pathlib import Path
 
 
 def appdata_dir() -> Path:
-    return Path(os.environ.get("APPDATA", Path.home() / "AppData/Roaming")) / "MediaGrab"
+    return Path(os.environ.get("APPDATA", Path.home() / "AppData/Roaming")) / "Grabzdia"
 
 
 def local_appdata_dir() -> Path:
-    return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "MediaGrab"
+    return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "Grabzdia"
 
 
 def managed_binary_dir() -> Path:
@@ -23,7 +23,7 @@ def managed_binary_dir() -> Path:
 
 
 def default_download_dir() -> Path:
-    return Path.home() / "Downloads" / "MediaGrab"
+    return Path.home() / "Downloads" / "Grabzdia"
 
 
 def resource_root() -> Path:
@@ -55,7 +55,7 @@ def light_stylesheet_path() -> Path:
 
 
 def app_icon_path() -> Path:
-    return assets_dir() / "MediaGrab.ico"
+    return assets_dir() / "Grabzdia.ico"
 
 
 def ensure_app_directories() -> None:

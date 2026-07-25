@@ -38,7 +38,7 @@ class Sidebar(QWidget):
         brand_text_layout = QVBoxLayout(brand_text)
         brand_text_layout.setContentsMargins(0, 0, 0, 0)
         brand_text_layout.setSpacing(0)
-        name = QLabel("MediaGrab")
+        name = QLabel("Grabzdia")
         name.setObjectName("sidebarBrand")
         tagline = QLabel("Téléchargeur local")
         tagline.setObjectName("sidebarTagline")

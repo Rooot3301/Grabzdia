@@ -1,4 +1,4 @@
-"""Download and install the external binaries MediaGrab depends on.
+"""Download and install the external binaries Grabzdia depends on.
 
 yt-dlp and FFmpeg are fetched on first run (and on demand) from their official
 sources into a writable per-user directory, so the installer stays light and
@@ -99,7 +99,7 @@ def download_file(url: str, target: Path, on_progress=None) -> None:
     """Stream a URL to target atomically, reporting integer percent progress."""
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(target.suffix + ".part")
-    request = urllib.request.Request(url, headers={"User-Agent": "MediaGrab"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Grabzdia"})
     with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 (https only, fixed hosts)
         total = int(response.headers.get("Content-Length", 0) or 0)
         read = 0

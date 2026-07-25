@@ -1,18 +1,18 @@
-; Inno Setup script for MediaGrab.
+; Inno Setup script for Grabzdia.
 ; Build with: installer\build-installer.ps1  (passes the version automatically)
-; or manually: ISCC.exe /DMyAppVersion=1.0.0 installer\MediaGrab.iss
+; or manually: ISCC.exe /DMyAppVersion=1.0.0 installer\Grabzdia.iss
 
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.0"
 #endif
 
-#define MyAppName "MediaGrab"
-#define MyAppPublisher "MediaGrab"
-#define MyAppExeName "MediaGrab.exe"
+#define MyAppName "Grabzdia"
+#define MyAppPublisher "Grabzdia"
+#define MyAppExeName "Grabzdia.exe"
 
 [Setup]
 ; A stable AppId keeps upgrades and uninstall entries consistent across versions.
-AppId={{7F3B2C1A-9E44-4D2B-A6F1-9C3D5E7A1B20}
+AppId={{BF65B482-B9D3-4433-AD2F-10062944CC94}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -25,8 +25,8 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=Output
-OutputBaseFilename=MediaGrab-Setup-{#MyAppVersion}
-SetupIconFile=..\assets\MediaGrab.ico
+OutputBaseFilename=Grabzdia-Setup-{#MyAppVersion}
+SetupIconFile=..\assets\Grabzdia.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardStyle=modern
 Compression=lzma2/max
@@ -39,7 +39,7 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\dist\MediaGrab\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\Grabzdia\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

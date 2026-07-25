@@ -49,22 +49,32 @@ class UpdateDialog(QDialog):
         self._thread = None
         self._worker = None
 
-        self.setWindowTitle("Mise à jour disponible")
+        returning = bool(info.get("return_to_stable"))
+
+        self.setWindowTitle("Retour à la version stable" if returning else "Mise à jour disponible")
         self.setModal(True)
         self.setMinimumWidth(460)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 26, 28, 22)
         layout.setSpacing(12)
-        layout.addWidget(eyebrow_label("Mise à jour"))
-        title = QLabel(f"MediaGrab {info.get('version', '')} est disponible")
+        layout.addWidget(eyebrow_label("Retour à la stable" if returning else "Mise à jour"))
+        title = QLabel(
+            f"Revenir à Grabzdia {info.get('version', '')} (stable)"
+            if returning
+            else f"Grabzdia {info.get('version', '')} est disponible"
+        )
         title.setObjectName("pageTitle")
         title.setWordWrap(True)
         layout.addWidget(title)
 
         intro = QLabel(
-            "Une nouvelle version est publiée sur GitHub. Découvrez les nouveautés "
-            "ci-dessous, puis téléchargez et installez si vous le souhaitez (MediaGrab "
+            "Une version stable plus récente est disponible sur GitHub. Découvrez les "
+            "nouveautés ci-dessous, puis revenez à la version stable si vous le "
+            "souhaitez (Grabzdia se fermera pour laisser l’installateur terminer)."
+            if returning
+            else "Une nouvelle version est publiée sur GitHub. Découvrez les nouveautés "
+            "ci-dessous, puis téléchargez et installez si vous le souhaitez (Grabzdia "
             "se fermera pour laisser l’installateur terminer)."
         )
         intro.setObjectName("mutedText")
@@ -101,7 +111,7 @@ class UpdateDialog(QDialog):
         self.later_button.setObjectName("ghostButton")
         self.later_button.clicked.connect(self.reject)
         buttons.addWidget(self.later_button)
-        self.install_button = QPushButton("Télécharger et installer")
+        self.install_button = QPushButton("Revenir à la version stable" if returning else "Télécharger et installer")
         self.install_button.setObjectName("primaryButton")
         self.install_button.clicked.connect(self._install)
         self.install_button.setEnabled(bool(info.get("asset")))
@@ -124,7 +134,7 @@ class UpdateDialog(QDialog):
         self.later_button.setEnabled(False)
         self.bar.setVisible(True)
         self.status.setText("Téléchargement de l’installateur…")
-        target = Path(tempfile.gettempdir()) / f"MediaGrab-Setup-{self.info.get('version', 'latest')}.exe"
+        target = Path(tempfile.gettempdir()) / f"Grabzdia-Setup-{self.info.get('version', 'latest')}.exe"
         self._worker = InstallerDownloadWorker(asset, target)
         self._worker.progress.connect(self.bar.setValue)
         self._worker.finished.connect(self._downloaded)

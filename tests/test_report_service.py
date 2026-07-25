@@ -17,7 +17,7 @@ def test_build_report_redacts_and_zips(tmp_path, monkeypatch):
     out = tmp_path / "out"
     zip_path = build_report(out, stamp="fixed")
 
-    assert zip_path.name == "mediagrab-report-fixed.zip"
+    assert zip_path.name == "grabzdia-report-fixed.zip"
     with zipfile.ZipFile(zip_path) as archive:
         names = archive.namelist()
         assert "system.txt" in names
@@ -29,7 +29,7 @@ def test_build_report_redacts_and_zips(tmp_path, monkeypatch):
 
 def test_issue_url_points_to_repo():
     url = issue_url()
-    assert url.startswith("https://github.com/Rooot3301/MediaGrab/issues/new?")
+    assert url.startswith("https://github.com/Rooot3301/Grabzdia/issues/new?")
     assert "title=" in url and "body=" in url
 
 
