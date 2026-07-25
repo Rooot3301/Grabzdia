@@ -12,4 +12,5 @@ QUALITY_HEIGHTS = {"360p": 360, "480p": 480, "720p": 720, "1080p": 1080, "1440p"
 GITHUB_REPO = "Rooot3301/Grabzdia"
 GITHUB_LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
 

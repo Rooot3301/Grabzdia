@@ -22,19 +22,61 @@ def _is_trusted_asset(url: str) -> bool:
     return parts.scheme == "https" and (host == "github.com" or host.endswith(".githubusercontent.com"))
 
 
-def parse_version(text: str) -> tuple[int, ...]:
-    """Turn a version string like 'v1.2.3' into a comparable tuple (1, 2, 3)."""
+def version_key(text: str) -> tuple[int, int, int, int, int]:
+    """Clé ordonnable gérant les pré-releases -evo.
+
+    Stable X.Y.Z -> (X, Y, Z, 1, 0) ; beta X.Y.Z-evo.N -> (X, Y, Z, 0, N).
+    Ainsi une beta est classée juste avant sa stable. Tag malformé -> (0,0,0,1,0).
+    """
     cleaned = text.strip().lstrip("vV")
-    parts: list[int] = []
-    for chunk in cleaned.split("."):
-        digits = "".join(character for character in chunk if character.isdigit())
-        parts.append(int(digits) if digits else 0)
-    return tuple(parts) or (0,)
+    base, rank, evo = cleaned, 1, 0
+    if "-evo" in cleaned.lower():
+        base, _, suffix = cleaned.partition("-evo")
+        digits = "".join(c for c in suffix if c.isdigit())
+        rank, evo = 0, int(digits) if digits else 0
+    nums: list[int] = []
+    for chunk in base.split("."):
+        d = "".join(c for c in chunk if c.isdigit())
+        nums.append(int(d) if d else 0)
+    nums = (nums + [0, 0, 0])[:3]
+    return (nums[0], nums[1], nums[2], rank, evo)
+
+
+def is_prerelease(text: str) -> bool:
+    """True pour une version/tag de pré-release EVO."""
+    return "-evo" in text.lower()
 
 
 def is_newer(latest: str, current: str) -> bool:
-    """True when the latest version is strictly greater than the current one."""
-    return parse_version(latest) > parse_version(current)
+    """True quand `latest` est strictement plus récent que `current`."""
+    return version_key(latest) > version_key(current)
+
+
+def choose_update(channel: str, current: str, releases: list[dict]) -> dict | None:
+    """Choisit la release à proposer selon le canal, ou None.
+
+    LIVE : dernière stable ; proposée si plus récente, ou en retour à la stable
+    lorsque l'on tourne sur une beta. EVO : la plus récente toutes catégories.
+    Le dict renvoyé est la release cible enrichie de `return_to_stable`.
+    """
+    usable = [r for r in releases if r.get("version")]
+    if not usable:
+        return None
+    current_key = version_key(current)
+    if channel == "evo":
+        target = max(usable, key=lambda r: version_key(r["version"]))
+        if version_key(target["version"]) > current_key:
+            return {**target, "return_to_stable": False}
+        return None
+    stables = [r for r in usable if not r.get("prerelease")]
+    if not stables:
+        return None
+    target = max(stables, key=lambda r: version_key(r["version"]))
+    if version_key(target["version"]) > current_key:
+        return {**target, "return_to_stable": False}
+    if is_prerelease(current) and target["version"] != current:
+        return {**target, "return_to_stable": True}
+    return None
 
 
 def select_installer_asset(assets: list[dict[str, Any]]) -> str | None:
