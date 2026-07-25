@@ -31,7 +31,7 @@ def version_key(text: str) -> tuple[int, int, int, int, int]:
     cleaned = text.strip().lstrip("vV")
     base, rank, evo = cleaned, 1, 0
     if "-evo" in cleaned.lower():
-        base, _, suffix = cleaned.partition("-evo")
+        base, _, suffix = cleaned.lower().partition("-evo")
         digits = "".join(c for c in suffix if c.isdigit())
         rank, evo = 0, int(digits) if digits else 0
     nums: list[int] = []
