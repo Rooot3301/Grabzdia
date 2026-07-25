@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
@@ -189,6 +191,23 @@ class SettingsPage(QWidget):
         self.auto_check.setChecked(self.settings.auto_check_updates)
         layout.addWidget(self.auto_check)
 
+        channel_row = QHBoxLayout()
+        self.live_radio = QRadioButton("LIVE (Stable)")
+        self.evo_radio = QRadioButton("EVO (Beta)")
+        self.channel_group = QButtonGroup(self)
+        self.channel_group.addButton(self.live_radio)
+        self.channel_group.addButton(self.evo_radio)
+        (self.evo_radio if self.settings.update_channel == "evo" else self.live_radio).setChecked(True)
+        self.channel_group.buttonToggled.connect(self._channel_changed)
+        channel_row.addWidget(self.live_radio)
+        channel_row.addWidget(self.evo_radio)
+        channel_row.addStretch()
+        layout.addLayout(channel_row)
+        evo_hint = QLabel("Versions de test, potentiellement instables.")
+        evo_hint.setObjectName("mutedText")
+        evo_hint.setWordWrap(True)
+        layout.addWidget(evo_hint)
+
         report_row = QHBoxLayout()
         report_hint = QLabel("Un souci ? Générez un rapport (logs anonymisés) et ouvrez un ticket.")
         report_hint.setObjectName("mutedText")
@@ -228,6 +247,12 @@ class SettingsPage(QWidget):
     def set_check_enabled(self, enabled: bool) -> None:
         self.check_updates_button.setEnabled(enabled)
         self.check_updates_button.setText("Recherche…" if not enabled else "Rechercher des mises à jour")
+
+    def _channel_changed(self, _button: QRadioButton, checked: bool) -> None:
+        if not checked:
+            return
+        self.settings.update_channel = "evo" if self.evo_radio.isChecked() else "live"
+        self.saved.emit()
 
     def _browse(self) -> None:
         value = QFileDialog.getExistingDirectory(self, "Dossier par défaut", self.folder.text())

@@ -27,7 +27,7 @@ from app.services.notification_service import NotificationService
 from app.services.queue_service import QueueService
 from app.services.settings_service import SettingsService
 from app.services.taskbar_service import TaskbarProgress, average_progress
-from app.services.update_service import UpdateCheckWorker, is_newer
+from app.services.update_service import UpdateCheckWorker, choose_update
 from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
 from app.ui.theme import apply_theme
@@ -323,17 +323,18 @@ class MainWindow(QMainWindow):
         self._update_check_worker = worker
         self._update_check_thread = start_worker(self, worker)
 
-    def _on_update_checked(self, info: object, error: str) -> None:
+    def _on_update_checked(self, releases: object, error: str) -> None:
         silent = getattr(self, "_update_silent", True)
         self.settings_page.set_check_enabled(True)
-        if error or not isinstance(info, dict):
+        if error or not isinstance(releases, list):
             if not silent:
                 self.settings_page.set_update_status("Vérification impossible. Réessayez plus tard.")
             return
-        latest = info.get("version", "")
-        if latest and is_newer(latest, __version__):
-            self.settings_page.set_update_status(f"Nouvelle version disponible : {latest}")
-            UpdateDialog(info, self).exec()
+        target = choose_update(self.settings.update_channel, __version__, releases)
+        if target:
+            verb = "Retour à la version stable" if target.get("return_to_stable") else "Nouvelle version"
+            self.settings_page.set_update_status(f"{verb} : {target['version']}")
+            UpdateDialog(target, self).exec()
         elif not silent:
             self.settings_page.set_update_status(f"Grabzdia est à jour (version {__version__}).")
 
