@@ -21,12 +21,13 @@ from PySide6.QtWidgets import (
 
 from app.services.disk_service import DiskService
 from app.services.history_service import HistoryService
-from app.ui.widgets import page_header
+from app.ui.widgets import MODE_LABELS, STATUS_LABELS, NoWheelComboBox, format_timestamp, page_header
 
 
 class HistoryPage(QWidget):
     redownload_requested = Signal(object)  # the history entry dict
     play_requested = Signal(str)  # local file path
+    entry_details_requested = Signal(object)  # l’entrée d’historique
 
     def __init__(self, service: HistoryService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -44,10 +45,23 @@ class HistoryPage(QWidget):
         self.search.setPlaceholderText("Rechercher par titre…")
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._render)
+        self.status_filter = NoWheelComboBox()
+        self.status_filter.addItem("Tous les statuts", "")
+        self.status_filter.addItem("Terminés", "completed")
+        self.status_filter.addItem("Échecs", "failed")
+        self.status_filter.addItem("Annulés", "cancelled")
+        self.status_filter.currentIndexChanged.connect(self._render)
+        self.type_filter = NoWheelComboBox()
+        self.type_filter.addItem("Tous les types", "")
+        self.type_filter.addItem("Vidéo", "video")
+        self.type_filter.addItem("Audio", "audio")
+        self.type_filter.currentIndexChanged.connect(self._render)
         self.count = QLabel()
         self.count.setObjectName("mutedText")
         search_row = QHBoxLayout()
         search_row.addWidget(self.search, 1)
+        search_row.addWidget(self.status_filter)
+        search_row.addWidget(self.type_filter)
         search_row.addWidget(self.count)
 
         self.table = QTableWidget(0, 6)
@@ -69,7 +83,11 @@ class HistoryPage(QWidget):
         self.redownload_button = QPushButton("Re-télécharger")
         self.redownload_button.setObjectName("primaryButton")
         self.redownload_button.clicked.connect(self._redownload)
+        self.details_button = QPushButton("Détails")
+        self.details_button.clicked.connect(self._details)
         open_button = QPushButton("Ouvrir le dossier")
+        delete_button = QPushButton("Supprimer")
+        delete_button.clicked.connect(self.delete_entry)
         clear_button = QPushButton("Vider l’historique")
         clear_button.setObjectName("dangerButton")
         open_button.clicked.connect(self.open_folder)
@@ -77,9 +95,11 @@ class HistoryPage(QWidget):
 
         actions = QHBoxLayout()
         actions.addStretch()
+        actions.addWidget(self.details_button)
         actions.addWidget(self.play_button)
         actions.addWidget(self.redownload_button)
         actions.addWidget(open_button)
+        actions.addWidget(delete_button)
         actions.addWidget(clear_button)
 
         layout = QVBoxLayout(self)
@@ -97,9 +117,16 @@ class HistoryPage(QWidget):
 
     def _filtered(self) -> list[dict[str, Any]]:
         query = self.search.text().strip().lower()
-        if not query:
-            return list(self._entries)
-        return [entry for entry in self._entries if query in str(entry.get("title", "")).lower()]
+        status = self.status_filter.currentData()
+        mode = self.type_filter.currentData()
+        entries = self._entries
+        if query:
+            entries = [entry for entry in entries if query in str(entry.get("title", "")).lower()]
+        if status:
+            entries = [entry for entry in entries if str(entry.get("status", "")) == status]
+        if mode:
+            entries = [entry for entry in entries if str(entry.get("mode", "")) == mode]
+        return list(entries)
 
     def _render(self) -> None:
         self._rendered = self._filtered()
@@ -111,18 +138,51 @@ class HistoryPage(QWidget):
             self.count.setText(f"{shown} sur {total}")
         self.table.setRowCount(shown)
         for row, entry in enumerate(self._rendered):
-            for column, key in enumerate(("title", "mode", "quality", "output_format", "status", "finished_at")):
-                item = QTableWidgetItem(str(entry.get(key, "")))
+            values = (
+                str(entry.get("title", "")),
+                MODE_LABELS.get(str(entry.get("mode", "")), str(entry.get("mode", ""))),
+                str(entry.get("quality", "")),
+                str(entry.get("output_format", "")).upper(),
+                self._status_text(entry),
+                format_timestamp(str(entry.get("finished_at", ""))),
+            )
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(value)
                 alignment = Qt.AlignmentFlag.AlignLeft if column == 0 else Qt.AlignmentFlag.AlignCenter
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | alignment)
+                if column == 4:
+                    item.setToolTip(self._status_tooltip(entry))
                 self.table.setItem(row, column, item)
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, entry.get("final_path") or entry.get("destination", ""))
         self._update_buttons()
+
+    @staticmethod
+    def _status_text(entry: dict[str, Any]) -> str:
+        """« Échec — <motif> », motif tronqué pour ne pas étirer la colonne."""
+        raw = str(entry.get("status", ""))
+        label = STATUS_LABELS.get(raw, raw)
+        reason = str(entry.get("error", "")).strip()
+        if raw != "failed" or not reason:
+            return label
+        short = reason if len(reason) <= 60 else reason[:60].rstrip() + "…"
+        return f"{label} — {short}"
+
+    @staticmethod
+    def _status_tooltip(entry: dict[str, Any]) -> str:
+        parts = [str(entry.get("error", "")).strip(), str(entry.get("error_hint", "")).strip()]
+        return "\n".join(part for part in parts if part)
+
+    def _details(self) -> None:
+        entry = self._current_entry()
+        if entry and str(entry.get("error", "")).strip():
+            self.entry_details_requested.emit(entry)
 
     def _update_buttons(self) -> None:
         has_selection = self.table.currentRow() >= 0 and self.table.rowCount() > 0
         self.redownload_button.setEnabled(has_selection)
         self.play_button.setEnabled(has_selection and self._playable_path() is not None)
+        entry = self._current_entry()
+        self.details_button.setEnabled(bool(entry and str(entry.get("error", "")).strip()))
 
     def _playable_path(self) -> str | None:
         entry = self._current_entry()
@@ -160,3 +220,15 @@ class HistoryPage(QWidget):
         if answer == QMessageBox.StandardButton.Yes:
             self.service.clear()
             self.refresh()
+
+    def delete_entry(self, confirm: bool = True) -> None:
+        """Supprime l’entrée sélectionnée. `confirm=False` saute la boîte de dialogue (tests)."""
+        entry = self._current_entry()
+        if not entry:
+            return
+        if confirm:
+            answer = QMessageBox.question(self, "Supprimer l’entrée", "Retirer cette ligne de l’historique ?")
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        self.service.remove(str(entry.get("id", "")))
+        self.refresh()

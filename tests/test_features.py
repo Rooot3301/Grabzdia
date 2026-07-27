@@ -211,3 +211,108 @@ def test_queue_item_details_button_emits_the_job_id(qtbot):
     widget.details_requested.connect(received.append)
     widget.details_button.click()
     assert received == [job.id]
+
+
+def test_format_timestamp_renders_a_readable_date():
+    from app.ui.widgets import format_timestamp
+
+    assert format_timestamp("2026-07-27T09:15:32+00:00").count("/") == 2
+
+
+def test_format_timestamp_passes_through_unparseable_values():
+    """L’historique contient des entrées écrites par des versions antérieures."""
+    from app.ui.widgets import format_timestamp
+
+    assert format_timestamp("pas une date") == "pas une date"
+    assert format_timestamp("") == ""
+
+
+def test_status_labels_accept_raw_history_strings():
+    """DownloadStatus est un StrEnum : ses membres s’indexent avec la chaîne brute."""
+    from app.ui.widgets import STATUS_LABELS
+
+    assert STATUS_LABELS["completed"] == "Terminé"
+    assert STATUS_LABELS["failed"] == "Échec"
+
+
+def test_unknown_status_falls_back_to_its_raw_value(qtbot, monkeypatch):
+    """Une entrée écrite par une version future ne doit pas afficher une case vide."""
+    page = _history_page(qtbot, monkeypatch, [_entry(status="quelque_chose")])
+    assert page.table.item(0, 4).text() == "quelque_chose"
+
+
+def _history_page(qtbot, monkeypatch, entries):
+    from app.services.history_service import HistoryService
+    from app.ui.pages.history_page import HistoryPage
+
+    monkeypatch.setattr(HistoryService, "load", lambda self: list(entries))
+    page = HistoryPage(HistoryService())
+    qtbot.addWidget(page)
+    return page
+
+
+def _entry(**overrides):
+    base = {
+        "id": "1", "title": "Une vidéo", "mode": "video", "quality": "1080p",
+        "output_format": "mp4", "status": "completed", "finished_at": "2026-07-27T09:15:32+00:00",
+        "destination": ".", "final_path": "", "error": "", "error_hint": "", "error_output": "",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_history_status_filter_isolates_failures(qtbot, monkeypatch):
+    entries = [
+        _entry(id="1", status="completed"),
+        _entry(id="2", status="failed", error="Vidéo indisponible"),
+    ]
+    page = _history_page(qtbot, monkeypatch, entries)
+    assert page.table.rowCount() == 2
+    page.status_filter.setCurrentIndex(page.status_filter.findData("failed"))
+    assert page.table.rowCount() == 1
+    assert page._rendered[0]["id"] == "2"
+
+
+def test_history_type_filter_combines_with_search(qtbot, monkeypatch):
+    entries = [
+        _entry(id="1", title="Concert", mode="audio"),
+        _entry(id="2", title="Concert", mode="video"),
+        _entry(id="3", title="Autre", mode="audio"),
+    ]
+    page = _history_page(qtbot, monkeypatch, entries)
+    page.type_filter.setCurrentIndex(page.type_filter.findData("audio"))
+    page.search.setText("concert")
+    assert [entry["id"] for entry in page._rendered] == ["1"]
+
+
+def test_history_shows_the_failure_reason_in_the_status_cell(qtbot, monkeypatch):
+    entries = [_entry(id="1", status="failed", error="Vidéo indisponible")]
+    page = _history_page(qtbot, monkeypatch, entries)
+    assert "Échec" in page.table.item(0, 4).text()
+    assert "Vidéo indisponible" in page.table.item(0, 4).text()
+
+
+def test_history_translates_status_and_mode(qtbot, monkeypatch):
+    page = _history_page(qtbot, monkeypatch, [_entry(mode="audio", status="completed")])
+    assert page.table.item(0, 1).text() == "Audio"
+    assert page.table.item(0, 4).text() == "Terminé"
+
+
+def test_history_delete_removes_the_selected_entry(qtbot, monkeypatch):
+    from app.services.history_service import HistoryService
+
+    removed: list[str] = []
+    monkeypatch.setattr(HistoryService, "remove", lambda self, job_id: removed.append(job_id))
+    page = _history_page(qtbot, monkeypatch, [_entry(id="42")])
+    page.table.selectRow(0)
+    page.delete_entry(confirm=False)
+    assert removed == ["42"]
+
+
+def test_history_details_button_needs_a_failed_entry(qtbot, monkeypatch):
+    entries = [_entry(id="1", status="completed"), _entry(id="2", status="failed", error="Vidéo indisponible")]
+    page = _history_page(qtbot, monkeypatch, entries)
+    page.table.selectRow(0)
+    assert not page.details_button.isEnabled()
+    page.table.selectRow(1)
+    assert page.details_button.isEnabled()

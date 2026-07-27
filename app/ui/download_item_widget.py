@@ -5,15 +5,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushBu
 
 from app.models.download_job import DownloadJob, DownloadStatus
 from app.services.disk_service import DiskService
-
-STATUS_LABELS = {
-    DownloadStatus.QUEUED: "En attente",
-    DownloadStatus.RUNNING: "Téléchargement",
-    DownloadStatus.PAUSED: "En pause",
-    DownloadStatus.COMPLETED: "Terminé",
-    DownloadStatus.FAILED: "Échec",
-    DownloadStatus.CANCELLED: "Annulé",
-}
+from app.ui.widgets import STATUS_LABELS
 
 
 class DownloadItemWidget(QFrame):

@@ -121,6 +121,7 @@ class MainWindow(QMainWindow):
         self.settings_page.about_requested.connect(self._show_about)
         self.history_page.redownload_requested.connect(self._redownload)
         self.history_page.play_requested.connect(lambda path: self._play_file(path))
+        self.history_page.entry_details_requested.connect(self._show_history_error_details)
 
         self.notifications.activated.connect(self._raise_window)
 
@@ -273,6 +274,15 @@ class MainWindow(QMainWindow):
         if not job:
             return
         ErrorDialog(job.title, job.error, job.error_hint, job.error_output, self).exec()
+
+    def _show_history_error_details(self, entry: dict) -> None:
+        ErrorDialog(
+            str(entry.get("title", "")),
+            str(entry.get("error", "")),
+            str(entry.get("error_hint", "")),
+            str(entry.get("error_output", "")),
+            self,
+        ).exec()
 
     # ---- settings ----------------------------------------------------------
     def _settings_saved(self) -> None:
