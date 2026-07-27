@@ -153,3 +153,61 @@ def test_failed_download_records_reason_hint_and_output():
     assert received and received[0][1] == "Vidéo indisponible"
     assert job.error_hint
     assert "Video unavailable" in job.error_output
+
+
+def test_error_dialog_hides_an_empty_hint(qtbot):
+    from app.ui.error_dialog import ErrorDialog
+
+    with_hint = ErrorDialog("Titre", "Motif", "Un conseil", "ERROR: brut")
+    without_hint = ErrorDialog("Titre", "Motif", "", "ERROR: brut")
+    qtbot.addWidget(with_hint)
+    qtbot.addWidget(without_hint)
+    assert not with_hint.hint.isHidden()
+    assert without_hint.hint.isHidden()
+
+
+def test_error_dialog_copy_text_carries_everything(qtbot):
+    from app.ui.error_dialog import ErrorDialog
+
+    dialog = ErrorDialog("Ma vidéo", "Vidéo indisponible", "Elle a été supprimée.", "ERROR: Video unavailable")
+    qtbot.addWidget(dialog)
+    text = dialog.copy_text()
+    assert "Vidéo indisponible" in text
+    assert "Elle a été supprimée." in text
+    assert "ERROR: Video unavailable" in text
+
+
+def test_queue_item_shows_details_only_on_a_failed_job(qtbot):
+    from app.models.download_job import DownloadJob, DownloadStatus
+    from app.ui.download_item_widget import DownloadItemWidget
+
+    job = DownloadJob(
+        url="https://example.com/v", title="t", mode="video", quality="1080p",
+        output_format="mp4", destination=".", filename_template="%(title)s.%(ext)s",
+    )
+    widget = DownloadItemWidget(job)
+    qtbot.addWidget(widget)
+    assert widget.details_button.isHidden()
+
+    job.status = DownloadStatus.FAILED
+    job.error = "Vidéo indisponible"
+    widget.update_job(job)
+    assert not widget.details_button.isHidden()
+
+
+def test_queue_item_details_button_emits_the_job_id(qtbot):
+    from app.models.download_job import DownloadJob, DownloadStatus
+    from app.ui.download_item_widget import DownloadItemWidget
+
+    job = DownloadJob(
+        url="https://example.com/v", title="t", mode="video", quality="1080p",
+        output_format="mp4", destination=".", filename_template="%(title)s.%(ext)s",
+    )
+    job.status = DownloadStatus.FAILED
+    job.error = "Vidéo indisponible"
+    widget = DownloadItemWidget(job)
+    qtbot.addWidget(widget)
+    received: list[str] = []
+    widget.details_requested.connect(received.append)
+    widget.details_button.click()
+    assert received == [job.id]

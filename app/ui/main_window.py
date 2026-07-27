@@ -28,6 +28,7 @@ from app.services.queue_service import QueueService
 from app.services.settings_service import SettingsService
 from app.services.taskbar_service import TaskbarProgress, average_progress
 from app.services.update_service import UpdateCheckWorker, choose_update
+from app.ui.error_dialog import ErrorDialog
 from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
 from app.ui.theme import apply_theme
@@ -104,6 +105,7 @@ class MainWindow(QMainWindow):
         self.download_page.retry_requested.connect(self.manager.retry)
         self.download_page.open_requested.connect(self._open_target)
         self.download_page.play_requested.connect(self._play_job)
+        self.download_page.error_details_requested.connect(self._show_error_details)
 
         self.metadata.succeeded.connect(self._metadata_ready)
         self.metadata.failed.connect(self._error)
@@ -265,6 +267,12 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(DiskService.validate_destination(target))))
         except Exception as error:
             self._error(str(error))
+
+    def _show_error_details(self, job_id: str) -> None:
+        job = next((item for item in self.manager.jobs if item.id == job_id), None)
+        if not job:
+            return
+        ErrorDialog(job.title, job.error, job.error_hint, job.error_output, self).exec()
 
     # ---- settings ----------------------------------------------------------
     def _settings_saved(self) -> None:

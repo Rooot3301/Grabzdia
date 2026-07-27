@@ -21,6 +21,7 @@ class DownloadItemWidget(QFrame):
     retry_requested = Signal(str)
     open_requested = Signal(str)
     play_requested = Signal(str)
+    details_requested = Signal(str)
 
     def __init__(self, job: DownloadJob, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -39,12 +40,14 @@ class DownloadItemWidget(QFrame):
         self.play = QPushButton("Lire")
         self.play.setObjectName("primaryButton")
         self.open = QPushButton("Ouvrir le dossier")
+        self.details_button = QPushButton("Détails")
 
         heading = QHBoxLayout()
         heading.addWidget(self.title, 1)
         heading.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch()
+        buttons.addWidget(self.details_button)
         buttons.addWidget(self.cancel)
         buttons.addWidget(self.retry)
         buttons.addWidget(self.play)
@@ -59,6 +62,7 @@ class DownloadItemWidget(QFrame):
         self.retry.clicked.connect(lambda: self.retry_requested.emit(self.job_id))
         self.open.clicked.connect(lambda: self.open_requested.emit(self.job_id))
         self.play.clicked.connect(lambda: self.play_requested.emit(self.job_id))
+        self.details_button.clicked.connect(lambda: self.details_requested.emit(self.job_id))
         self.update_job(job)
 
     def update_job(self, job: DownloadJob) -> None:
@@ -74,5 +78,6 @@ class DownloadItemWidget(QFrame):
         self.cancel.setVisible(job.status == DownloadStatus.RUNNING)
         self.retry.setVisible(job.status in {DownloadStatus.FAILED, DownloadStatus.CANCELLED})
         self.open.setVisible(job.status == DownloadStatus.COMPLETED)
+        self.details_button.setVisible(job.status == DownloadStatus.FAILED and bool(job.error))
         playable = job.status == DownloadStatus.COMPLETED and DiskService.resolve_media_path(job.final_path, job.destination) is not None
         self.play.setVisible(playable)
