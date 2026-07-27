@@ -45,9 +45,9 @@ def test_specific_rule_wins_over_generic_one():
 
 
 def test_unknown_error_falls_back_to_the_raw_error_line():
-    lines = ["[youtube] Extracting URL", "ERROR: quelque chose d'inédit a mal tourné"]
+    lines = ["[youtube] Extracting URL", "ERROR: quelque chose d’inédit a mal tourné"]
     result = diagnose(lines, 1)
-    assert result.reason == "quelque chose d'inédit a mal tourné"
+    assert result.reason == "quelque chose d’inédit a mal tourné"
     assert result.hint == ""
 
 

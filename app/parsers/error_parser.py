@@ -1,8 +1,8 @@
-"""Traduire la sortie brute de yt-dlp en un motif d'échec lisible.
+"""Traduire la sortie brute de yt-dlp en un motif d’échec lisible.
 
 Les règles sont ordonnées du plus spécifique au plus générique : la première
 qui correspond gagne. La correspondance est une sous-chaîne insensible à la
-casse, ce qui tolère les reformulations de yt-dlp d'une version à l'autre.
+casse, ce qui tolère les reformulations de yt-dlp d’une version à l’autre.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class Diagnosis:
     raw: str = ""
 
 
-# (sondes, motif, conseil) — l'ordre porte la logique : du précis au général.
+# (sondes, motif, conseil) — l’ordre porte la logique : du précis au général.
 RULES: tuple[tuple[tuple[str, ...], str, str], ...] = (
     (("private video",),
      "Vidéo privée",
@@ -31,8 +31,8 @@ RULES: tuple[tuple[tuple[str, ...], str, str], ...] = (
      "Réservée aux membres",
      "Un abonnement à la chaîne est nécessaire."),
     (("sign in to confirm your age", "age-restricted"),
-     "Limite d'âge",
-     "La source exige une session connectée, que Grabzdia n'utilise pas."),
+     "Limite d’âge",
+     "La source exige une session connectée, que Grabzdia n’utilise pas."),
     (("video unavailable", "no longer available"),
      "Vidéo indisponible",
      "Elle a été supprimée ou rendue privée."),
@@ -40,7 +40,7 @@ RULES: tuple[tuple[tuple[str, ...], str, str], ...] = (
     # this video available in your country », où not et available sont séparés.
     (("available in your country", "geo restricted", "geo-restricted"),
      "Bloquée dans votre pays",
-     "La source refuse l'accès depuis votre région."),
+     "La source refuse l’accès depuis votre région."),
     (("requested format is not available",),
      "Format demandé indisponible",
      "Réessayez en qualité « Automatique » ou « Meilleure qualité »."),
@@ -78,7 +78,7 @@ RULES: tuple[tuple[tuple[str, ...], str, str], ...] = (
 
 
 def diagnose(lines: list[str], exit_code: int) -> Diagnosis:
-    """Motif d'échec déduit des dernières lignes de yt-dlp.
+    """Motif d’échec déduit des dernières lignes de yt-dlp.
 
     Deux replis, dans cet ordre : la dernière ligne `ERROR:` telle quelle, puis
     le code de sortie. On en dit donc toujours plus que « le téléchargement a
@@ -93,4 +93,4 @@ def diagnose(lines: list[str], exit_code: int) -> Diagnosis:
     if errors:
         message = errors[-1].strip()[len(_ERROR_PREFIX):].strip()
         return Diagnosis(reason=message[:MAX_REASON], raw=raw)
-    return Diagnosis(reason=f"yt-dlp s'est arrêté avec le code {exit_code}.", raw=raw)
+    return Diagnosis(reason=f"yt-dlp s’est arrêté avec le code {exit_code}.", raw=raw)
