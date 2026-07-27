@@ -95,3 +95,22 @@ def test_settings_selectors_ignore_wheel(settings_page):
         assert isinstance(widget, NoWheelComboBox)
     for widget in (settings_page.parallel, settings_page.history_limit):
         assert isinstance(widget, NoWheelSpinBox)
+
+
+def test_update_channel_row_is_labelled(settings_page):
+    from PySide6.QtWidgets import QLabel
+
+    labels = [widget.text() for widget in settings_page.findChildren(QLabel)]
+    assert "Canal de mise à jour" in labels
+
+
+def test_channel_hint_describes_both_channels(settings_page):
+    hint = settings_page.channel_hint.text()
+    assert "LIVE" in hint and "EVO" in hint
+
+
+def test_channel_radio_writes_the_setting(settings_page):
+    settings_page.evo_radio.setChecked(True)
+    assert settings_page.settings.update_channel == "evo"
+    settings_page.live_radio.setChecked(True)
+    assert settings_page.settings.update_channel == "live"
