@@ -47,6 +47,7 @@ class DownloadJob:
     use_archive: bool = False
     error_hint: str = ""
     error_output: str = ""
+    sponsorblock: bool = False
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)

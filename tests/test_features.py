@@ -316,3 +316,51 @@ def test_history_details_button_needs_a_failed_entry(qtbot, monkeypatch):
     assert not page.details_button.isEnabled()
     page.table.selectRow(1)
     assert page.details_button.isEnabled()
+
+
+def _job(**overrides):
+    from app.models.download_job import DownloadJob
+
+    base = {
+        "url": "https://example.com/v", "title": "t", "mode": "video", "quality": "1080p",
+        "output_format": "mp4", "destination": ".", "filename_template": "%(title)s.%(ext)s",
+    }
+    base.update(overrides)
+    return DownloadJob(**base)
+
+
+def test_sponsorblock_argument_is_absent_by_default():
+    from app.services.download_service import DownloadRunner
+
+    args = DownloadRunner(_job(), binaries=None).arguments()
+    assert "--sponsorblock-remove" not in args
+
+
+def test_sponsorblock_argument_carries_the_categories():
+    from app.constants import SPONSORBLOCK_CATEGORIES
+    from app.services.download_service import DownloadRunner
+
+    args = DownloadRunner(_job(sponsorblock=True), binaries=None).arguments()
+    assert "--sponsorblock-remove" in args
+    assert args[args.index("--sponsorblock-remove") + 1] == SPONSORBLOCK_CATEGORIES
+
+
+def test_sponsorblock_setting_survives_a_roundtrip():
+    from app.models.application_settings import ApplicationSettings
+
+    settings = ApplicationSettings()
+    assert settings.sponsorblock_remove is False
+    settings.sponsorblock_remove = True
+    assert ApplicationSettings.from_dict(settings.to_dict()).sponsorblock_remove is True
+
+
+def test_sponsorblock_setting_defaults_on_a_legacy_settings_file():
+    from app.models.application_settings import ApplicationSettings
+
+    assert ApplicationSettings.from_dict({"theme": "dark"}).sponsorblock_remove is False
+
+
+def test_built_job_copies_the_sponsorblock_setting(page):
+    page.settings.sponsorblock_remove = True
+    job = page._build_job("https://example.com/v", "Titre", ".")
+    assert job.sponsorblock is True

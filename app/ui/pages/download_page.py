@@ -346,6 +346,7 @@ class DownloadPage(QWidget):
             embed_thumbnail=self.thumbnail_box.isChecked(),
             playlist=self.playlist.isChecked(),
             use_archive=self.settings.use_download_archive,
+            sponsorblock=self.settings.sponsorblock_remove,
         )
 
     def _enqueue(self, start: bool) -> None:

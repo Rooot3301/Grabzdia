@@ -13,7 +13,7 @@ def _utf8_environment() -> QProcessEnvironment:
     environment.insert("PYTHONUTF8", "1")
     return environment
 
-from app.constants import FINAL_PATH_PREFIX, PROGRESS_PREFIX
+from app.constants import FINAL_PATH_PREFIX, PROGRESS_PREFIX, SPONSORBLOCK_CATEGORIES
 from app.models.download_job import DownloadJob, DownloadStatus
 from app.parsers.error_parser import diagnose
 from app.parsers.progress_parser import parse_progress
@@ -61,6 +61,8 @@ class DownloadRunner(QObject):
             args.append("--no-playlist")
         if self.job.use_archive:
             args += ["--download-archive", str(archive_path())]
+        if self.job.sponsorblock:
+            args += ["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES]
         if self.job.subtitles:
             args.append("--write-subs")
         if self.job.auto_subtitles:

@@ -16,3 +16,6 @@ GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
 # Page de documentation yt-dlp listant tous les sites extractibles.
 SUPPORTED_SITES_URL = "https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md"
 
+# Catégories SponsorBlock retirées quand l’option est active (YouTube uniquement).
+SPONSORBLOCK_CATEGORIES = "sponsor,selfpromo,interaction"
+
