@@ -13,3 +13,6 @@ GITHUB_REPO = "Rooot3301/Grabzdia"
 GITHUB_RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases/latest"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
 
+# Page de documentation yt-dlp listant tous les sites extractibles.
+SUPPORTED_SITES_URL = "https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md"
+

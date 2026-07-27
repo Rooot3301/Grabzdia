@@ -180,6 +180,7 @@ QHeaderView::section {
 QTableWidget::item { padding: 6px; }
 
 /* ---------------- Divers ---------------- */
+QLabel a { color: #5B44E0; text-decoration: none; }
 QStatusBar { background: #ECEFF5; color: #5B6675; border-top: 1px solid #DCE2EC; }
 QStatusBar::item { border: 0; }
 QToolTip { background: #FFFFFF; color: #1B2230; border: 1px solid #C6CEDC; border-radius: 6px; padding: 6px 8px; }

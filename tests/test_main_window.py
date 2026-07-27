@@ -114,3 +114,23 @@ def test_channel_radio_writes_the_setting(settings_page):
     assert settings_page.settings.update_channel == "evo"
     settings_page.live_radio.setChecked(True)
     assert settings_page.settings.update_channel == "live"
+
+
+def test_sources_hint_is_visible_and_links_out(page):
+    from app.constants import SUPPORTED_SITES_URL
+
+    text = page.sources_hint.text()
+    assert "YouTube" in text
+    assert SUPPORTED_SITES_URL in text
+    assert page.sources_hint.openExternalLinks()
+    assert not page.sources_hint.isHidden()
+
+
+def test_sources_hint_survives_the_busy_cycle(page):
+    """Le spinner change de texte pendant l'analyse ; les sources non."""
+    before = page.sources_hint.text()
+    page.set_busy(True)
+    assert page.spinner.text() == "Analyse en cours…"
+    assert page.sources_hint.text() == before
+    page.set_busy(False)
+    assert page.sources_hint.text() == before

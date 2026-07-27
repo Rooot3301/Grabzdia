@@ -184,6 +184,7 @@ QHeaderView::section {
 QTableWidget::item { padding: 6px; }
 
 /* ---------------- Divers ---------------- */
+QLabel a { color: #9B8CFF; text-decoration: none; }
 QStatusBar { background: #10151D; color: #8892A4; border-top: 1px solid #212A36; }
 QStatusBar::item { border: 0; }
 QToolTip { background: #202A38; color: #EDF1F7; border: 1px solid #3A4960; border-radius: 6px; padding: 6px 8px; }

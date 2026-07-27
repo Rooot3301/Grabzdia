@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.constants import SUPPORTED_SITES_URL
 from app.models.application_settings import ApplicationSettings
 from app.models.download_job import DownloadJob
 from app.models.media_info import MediaInfo
@@ -116,6 +117,15 @@ class DownloadPage(QWidget):
         self.spinner = QLabel("Astuce : glissez-déposez un lien ici.")
         self.spinner.setObjectName("mutedText")
         layout.addWidget(self.spinner)
+        self.sources_hint = QLabel(
+            "YouTube, Vimeo, Twitch, TikTok, SoundCloud… et plus d’un millier "
+            f"d’autres sites. <a href=\"{SUPPORTED_SITES_URL}\">Voir la liste ↗</a>"
+        )
+        self.sources_hint.setObjectName("mutedText")
+        self.sources_hint.setWordWrap(True)
+        self.sources_hint.setTextFormat(Qt.TextFormat.RichText)
+        self.sources_hint.setOpenExternalLinks(True)
+        layout.addWidget(self.sources_hint)
         return card
 
     def _media_card(self) -> QFrame:
