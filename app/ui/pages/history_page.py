@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.models.download_job import DownloadStatus
 from app.services.disk_service import DiskService
 from app.services.history_service import HistoryService
 from app.ui.widgets import MODE_LABELS, STATUS_LABELS, NoWheelComboBox, format_timestamp, page_header
@@ -73,8 +74,10 @@ class HistoryPage(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setHighlightSections(False)
-        for column in range(1, 6):
+        for column in (1, 2, 3, 5):
             self.table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)
+        self.table.setColumnWidth(4, 220)
         self.table.doubleClicked.connect(self.open_folder)
         self.table.itemSelectionChanged.connect(self._update_buttons)
 
@@ -87,7 +90,7 @@ class HistoryPage(QWidget):
         self.details_button.clicked.connect(self._details)
         open_button = QPushButton("Ouvrir le dossier")
         delete_button = QPushButton("Supprimer")
-        delete_button.clicked.connect(self.delete_entry)
+        delete_button.clicked.connect(lambda: self.delete_entry())
         clear_button = QPushButton("Vider l’historique")
         clear_button.setObjectName("dangerButton")
         open_button.clicked.connect(self.open_folder)
@@ -158,14 +161,14 @@ class HistoryPage(QWidget):
 
     @staticmethod
     def _status_text(entry: dict[str, Any]) -> str:
-        """« Échec — <motif> », motif tronqué pour ne pas étirer la colonne."""
+        """« Échec — <motif> ». La colonne est bornée en pixels (voir __init__) : Qt
+        ellipse tout seul si besoin, donc le motif n’est pas tronqué ici."""
         raw = str(entry.get("status", ""))
         label = STATUS_LABELS.get(raw, raw)
         reason = str(entry.get("error", "")).strip()
-        if raw != "failed" or not reason:
+        if raw != DownloadStatus.FAILED or not reason:
             return label
-        short = reason if len(reason) <= 60 else reason[:60].rstrip() + "…"
-        return f"{label} — {short}"
+        return f"{label} — {reason}"
 
     @staticmethod
     def _status_tooltip(entry: dict[str, Any]) -> str:

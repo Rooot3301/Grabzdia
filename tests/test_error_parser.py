@@ -35,6 +35,17 @@ def test_matching_is_case_insensitive():
     assert result.reason == "Vidéo indisponible"
 
 
+def test_a_warning_line_does_not_steal_the_diagnosis_from_the_real_error():
+    """Un 403 sur un fragment (avertissement, avec retry automatique) est un bruit
+    courant sur YouTube ; il ne doit pas l’emporter sur la vraie ligne ERROR:."""
+    lines = [
+        "WARNING: unable to download video data: HTTP Error 403: Forbidden. Retrying (1/3)",
+        "ERROR: [generic] Unsupported URL: https://x/y",
+    ]
+    result = diagnose(lines, 1)
+    assert result.reason == "Source non prise en charge"
+
+
 def test_specific_rule_wins_over_generic_one():
     """Une vidéo réservée aux membres renvoie aussi un 403 : le motif précis doit gagner."""
     lines = [

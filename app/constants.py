@@ -18,4 +18,3 @@ SUPPORTED_SITES_URL = "https://github.com/yt-dlp/yt-dlp/blob/master/supportedsit
 
 # Catégories SponsorBlock retirées quand l’option est active (YouTube uniquement).
 SPONSORBLOCK_CATEGORIES = "sponsor,selfpromo,interaction"
-

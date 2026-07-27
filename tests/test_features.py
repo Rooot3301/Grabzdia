@@ -172,6 +172,7 @@ def test_error_dialog_copy_text_carries_everything(qtbot):
     dialog = ErrorDialog("Ma vidéo", "Vidéo indisponible", "Elle a été supprimée.", "ERROR: Video unavailable")
     qtbot.addWidget(dialog)
     text = dialog.copy_text()
+    assert "Ma vidéo" in text
     assert "Vidéo indisponible" in text
     assert "Elle a été supprimée." in text
     assert "ERROR: Video unavailable" in text
@@ -292,6 +293,30 @@ def test_history_shows_the_failure_reason_in_the_status_cell(qtbot, monkeypatch)
     assert "Vidéo indisponible" in page.table.item(0, 4).text()
 
 
+def test_history_status_cell_keeps_the_full_reason_untruncated(qtbot, monkeypatch):
+    """Un motif long ne doit plus être coupé à 60 caractères : la colonne est bornée
+    en pixels et Qt ellipse tout seul, donc le texte porté par la cellule reste entier."""
+    long_reason = "Un motif d’échec particulièrement long qui dépasse largement soixante caractères"
+    assert len(long_reason) > 60
+    entries = [_entry(id="1", status="failed", error=long_reason)]
+    page = _history_page(qtbot, monkeypatch, entries)
+    cell_text = page.table.item(0, 4).text()
+    assert long_reason in cell_text
+    assert "…" not in cell_text
+
+
+def test_history_status_column_is_width_bounded_not_content_sized(qtbot, monkeypatch):
+    """La colonne Statut doit être en largeur fixe/interactive, pas ResizeToContents,
+    sinon un motif long fait exploser la largeur de la table."""
+    from PySide6.QtWidgets import QHeaderView
+
+    page = _history_page(qtbot, monkeypatch, [_entry(id="1")])
+    header = page.table.horizontalHeader()
+    assert header.sectionResizeMode(4) == QHeaderView.ResizeMode.Interactive
+    for column in (1, 2, 3, 5):
+        assert header.sectionResizeMode(column) == QHeaderView.ResizeMode.ResizeToContents
+
+
 def test_history_translates_status_and_mode(qtbot, monkeypatch):
     page = _history_page(qtbot, monkeypatch, [_entry(mode="audio", status="completed")])
     assert page.table.item(0, 1).text() == "Audio"
@@ -307,6 +332,24 @@ def test_history_delete_removes_the_selected_entry(qtbot, monkeypatch):
     page.table.selectRow(0)
     page.delete_entry(confirm=False)
     assert removed == ["42"]
+
+
+def test_history_delete_button_click_asks_for_confirmation(qtbot, monkeypatch):
+    """clicked porte un bool (checked) ; connecté tel quel il atterrirait sur `confirm`
+    et sauterait la boîte de dialogue. Un clic refusé ne doit rien supprimer."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QMessageBox, QPushButton
+
+    from app.services.history_service import HistoryService
+
+    removed: list[str] = []
+    monkeypatch.setattr(HistoryService, "remove", lambda self, job_id: removed.append(job_id))
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
+    page = _history_page(qtbot, monkeypatch, [_entry(id="42")])
+    page.table.selectRow(0)
+    delete_button = next(b for b in page.findChildren(QPushButton) if b.text() == "Supprimer")
+    qtbot.mouseClick(delete_button, Qt.MouseButton.LeftButton)
+    assert removed == []
 
 
 def test_history_details_button_needs_a_failed_entry(qtbot, monkeypatch):

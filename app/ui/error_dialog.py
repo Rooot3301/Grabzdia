@@ -31,6 +31,7 @@ class ErrorDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Détail de l’échec")
         self.setMinimumWidth(560)
+        self._title = title
         self._reason = reason
         self._hint = hint
         self._output = output
@@ -73,7 +74,7 @@ class ErrorDialog(QDialog):
 
     def copy_text(self) -> str:
         """Le texte porté au presse-papier. Exposé pour être testable."""
-        parts = [self._reason]
+        parts = [self._title, self._reason]
         if self._hint:
             parts.append(self._hint)
         if self._output:
