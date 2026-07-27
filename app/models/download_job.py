@@ -45,6 +45,8 @@ class DownloadJob:
     playlist: bool = False
     keep_temporary: bool = False
     use_archive: bool = False
+    error_hint: str = ""
+    error_output: str = ""
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)

@@ -117,3 +117,39 @@ def test_media_info_unused_import_guard():
     # Ensure the shared imports resolve (guards against accidental breakage).
     info = MediaInfo(media_id="i", title="t", original_url="https://x/y", formats=[MediaFormat(format_id="1")])
     assert info.title == "t"
+
+
+def test_runner_keeps_the_last_output_lines_only():
+    from app.models.download_job import DownloadJob
+    from app.services.download_service import TAIL_LINES, DownloadRunner
+
+    job = DownloadJob(
+        url="https://example.com/v", title="t", mode="video", quality="1080p",
+        output_format="mp4", destination=".", filename_template="%(title)s.%(ext)s",
+    )
+    runner = DownloadRunner(job, binaries=None)
+    for index in range(TAIL_LINES + 20):
+        runner.tail.append(f"ligne {index}")
+    assert len(runner.tail) == TAIL_LINES
+    assert runner.tail[-1] == f"ligne {TAIL_LINES + 19}"
+
+
+def test_failed_download_records_reason_hint_and_output():
+    """La sortie retenue doit produire un motif, pas la phrase générique."""
+    from app.models.download_job import DownloadJob
+    from app.services.download_service import DownloadRunner
+
+    job = DownloadJob(
+        url="https://example.com/v", title="t", mode="video", quality="1080p",
+        output_format="mp4", destination=".", filename_template="%(title)s.%(ext)s",
+    )
+    runner = DownloadRunner(job, binaries=None)
+    runner.tail.append("ERROR: Video unavailable")
+    received: list[tuple[str, str]] = []
+    runner.failed.connect(lambda job_id, message: received.append((job_id, message)))
+
+    runner._done(1, None)
+
+    assert received and received[0][1] == "Vidéo indisponible"
+    assert job.error_hint
+    assert "Video unavailable" in job.error_output
