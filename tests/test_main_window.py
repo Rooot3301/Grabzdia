@@ -136,17 +136,31 @@ def test_sources_hint_survives_the_busy_cycle(page):
     assert page.sources_hint.text() == before
 
 
-def test_apply_theme_sets_the_link_palette_colour(qtbot):
+@pytest.fixture
+def restore_app_theme():
+    """apply_theme mute la QApplication globale (style sheet + palette) ;
+    on restaure l'état d'origine pour ne pas polluer les tests suivants.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    style_sheet = app.styleSheet()
+    palette = app.palette()
+    yield app
+    app.setStyleSheet(style_sheet)
+    app.setPalette(palette)
+
+
+def test_apply_theme_sets_the_link_palette_colour(qtbot, restore_app_theme):
     """Qt ne propage pas les règles QSS aux ancres d'un QLabel enrichi ;
     apply_theme doit donc positionner la couleur via le rôle Link de la
     palette pour que le lien de sources_hint ne s'affiche pas en bleu Qt.
     """
     from PySide6.QtGui import QColor, QPalette
-    from PySide6.QtWidgets import QApplication
 
     from app.ui.theme import LINK_COLORS, apply_theme
 
-    app = QApplication.instance()
+    app = restore_app_theme
     for theme in ("dark", "light"):
         resolved = apply_theme(app, theme)
         assert app.palette().color(QPalette.ColorRole.Link) == QColor(LINK_COLORS[resolved])

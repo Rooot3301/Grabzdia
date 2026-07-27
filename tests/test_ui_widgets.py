@@ -30,8 +30,10 @@ def test_combo_ignores_wheel(qtbot):
     combo.addItems(["un", "deux", "trois"])
     combo.setCurrentIndex(1)
     qtbot.addWidget(combo)
-    QApplication.sendEvent(combo, _wheel_down())
+    event = _wheel_down()
+    QApplication.sendEvent(combo, event)
     assert combo.currentIndex() == 1
+    assert not event.isAccepted()  # doit remonter au QScrollArea parent
 
 
 def test_spinbox_ignores_wheel(qtbot):
@@ -39,8 +41,10 @@ def test_spinbox_ignores_wheel(qtbot):
     spin.setRange(1, 4)
     spin.setValue(2)
     qtbot.addWidget(spin)
-    QApplication.sendEvent(spin, _wheel_down())
+    event = _wheel_down()
+    QApplication.sendEvent(spin, event)
     assert spin.value() == 2
+    assert not event.isAccepted()  # doit remonter au QScrollArea parent
 
 
 def test_values_are_still_settable(qtbot):
