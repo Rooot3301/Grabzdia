@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QFont, QIcon, QPainter, QPixmap, QWheelEvent
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QFrame, QLabel, QSpinBox, QVBoxLayout, QWidget
 
 from app.utils.paths import icon_path
 
@@ -23,6 +23,33 @@ def render_svg(path: str, size: int) -> QPixmap:
     renderer.render(painter)
     painter.end()
     return pixmap
+
+
+class NoWheelComboBox(QComboBox):
+    """Combo box insensible à la molette.
+
+    Dans une page défilante, faire tourner la molette au-dessus d’un combo
+    changeait sa valeur au lieu de faire défiler la page. Ignorer l’événement
+    le laisse remonter jusqu’au QScrollArea parent, qui défile normalement.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        event.ignore()
+
+
+class NoWheelSpinBox(QSpinBox):
+    """Spin box insensible à la molette. Voir NoWheelComboBox."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        event.ignore()
 
 
 def eyebrow_label(text: str) -> QLabel:

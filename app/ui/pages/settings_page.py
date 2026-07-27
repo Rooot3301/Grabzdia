@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
-    QComboBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -14,13 +13,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from app.models.application_settings import ApplicationSettings
-from app.ui.widgets import eyebrow_label, page_header
+from app.ui.widgets import NoWheelComboBox, NoWheelSpinBox, eyebrow_label, page_header
 from app.utils.filename import validate_output_template
 from app.version import __version__
 
@@ -92,13 +90,13 @@ class SettingsPage(QWidget):
         folder_row.addWidget(self.folder, 1)
         folder_row.addWidget(browse)
         form.addRow("Dossier par défaut", folder_row)
-        self.organize = QComboBox()
+        self.organize = NoWheelComboBox()
         self.organize.addItem("Tout dans le dossier choisi", "all")
         self.organize.addItem("Séparer Audio et Vidéos", "separate")
         self.organize.addItem("Créer un dossier par playlist", "playlist")
         self.organize.setCurrentIndex(max(0, self.organize.findData(self.settings.organize_mode)))
         form.addRow("Organisation", self.organize)
-        self.theme = QComboBox()
+        self.theme = NoWheelComboBox()
         self.theme.addItem("Sombre", "dark")
         self.theme.addItem("Clair", "light")
         self.theme.addItem("Système", "system")
@@ -115,14 +113,14 @@ class SettingsPage(QWidget):
         layout.addWidget(self._section("Téléchargements", "File d’attente, noms de fichiers et historique"))
         form = QFormLayout()
         form.setSpacing(12)
-        self.parallel = QSpinBox()
+        self.parallel = NoWheelSpinBox()
         self.parallel.setRange(1, 4)
         self.parallel.setValue(self.settings.parallel_downloads)
         form.addRow("Téléchargements simultanés", self.parallel)
         self.template = QLineEdit(self.settings.filename_template)
         self.template.setPlaceholderText("%(title)s [%(id)s].%(ext)s")
         form.addRow("Modèle de nom", self.template)
-        self.history_limit = QSpinBox()
+        self.history_limit = NoWheelSpinBox()
         self.history_limit.setRange(10, 5000)
         self.history_limit.setSingleStep(50)
         self.history_limit.setValue(self.settings.history_limit)

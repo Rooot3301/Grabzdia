@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QCheckBox,
-    QComboBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -26,7 +25,7 @@ from app.services.disk_service import DiskService
 from app.ui.batch_dialog import BatchDialog
 from app.ui.download_item_widget import DownloadItemWidget
 from app.ui.log_panel import LogPanel
-from app.ui.widgets import eyebrow_label, page_header
+from app.ui.widgets import NoWheelComboBox, eyebrow_label, page_header
 from app.utils.filename import sanitize_filename, validate_output_template
 from app.utils.url_validator import validate_media_url
 
@@ -178,14 +177,14 @@ class DownloadPage(QWidget):
 
         form = QFormLayout()
         form.setSpacing(12)
-        self.quality = QComboBox()
+        self.quality = NoWheelComboBox()
         self.quality.addItems(["Automatique", "360p", "480p", "720p", "1080p", "1440p", "2160p", "Meilleure qualité"])
         self.quality.setCurrentText("1080p")
-        self.format = QComboBox()
+        self.format = NoWheelComboBox()
         self.format.addItems(["MP4", "MKV", "WebM"])
-        self.codec = QComboBox()
+        self.codec = NoWheelComboBox()
         self.codec.addItems(["Automatique", "H.264", "VP9", "AV1"])
-        self.bitrate = QComboBox()
+        self.bitrate = NoWheelComboBox()
         self.bitrate.addItems(["128 kb/s", "192 kb/s", "256 kb/s", "320 kb/s"])
         self.bitrate.setCurrentText("320 kb/s")
         form.addRow("Qualité", self.quality)

@@ -29,6 +29,16 @@ def page(qtbot):
     return widget
 
 
+@pytest.fixture
+def settings_page(qtbot):
+    """Une SettingsPage isolée, sur des réglages neufs en mémoire."""
+    from app.ui.pages import SettingsPage
+
+    widget = SettingsPage(ApplicationSettings())
+    qtbot.addWidget(widget)
+    return widget
+
+
 def test_window_has_three_pages(window):
     assert window.stack.count() == 3
 
@@ -69,3 +79,19 @@ def test_set_media_enables_actions(page):
     assert page.queue_button.isEnabled()
     assert page.platform_pill.text() == "YouTube"
     assert page.media_title.text() == "Titre"
+
+
+def test_download_selectors_ignore_wheel(page):
+    from app.ui.widgets import NoWheelComboBox
+
+    for widget in (page.quality, page.format, page.codec, page.bitrate):
+        assert isinstance(widget, NoWheelComboBox)
+
+
+def test_settings_selectors_ignore_wheel(settings_page):
+    from app.ui.widgets import NoWheelComboBox, NoWheelSpinBox
+
+    for widget in (settings_page.organize, settings_page.theme):
+        assert isinstance(widget, NoWheelComboBox)
+    for widget in (settings_page.parallel, settings_page.history_limit):
+        assert isinstance(widget, NoWheelSpinBox)
