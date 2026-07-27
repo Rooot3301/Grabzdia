@@ -154,6 +154,15 @@ QCheckBox::indicator {
 QCheckBox::indicator:hover { border-color: #7B61FF; }
 QCheckBox::indicator:checked { background: #7B61FF; border-color: #7B61FF; }
 
+/* ---------------- Boutons radio ---------------- */
+QRadioButton { spacing: 8px; color: #3A4453; }
+QRadioButton::indicator {
+    width: 17px; height: 17px; border-radius: 9px;
+    border: 1px solid #B9C2D2; background: #FFFFFF;
+}
+QRadioButton::indicator:hover { border-color: #7B61FF; }
+QRadioButton::indicator:checked { background: #7B61FF; border-color: #7B61FF; }
+
 /* ---------------- Défilement ---------------- */
 QScrollArea { border: 0; background: transparent; }
 QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
@@ -180,7 +189,6 @@ QHeaderView::section {
 QTableWidget::item { padding: 6px; }
 
 /* ---------------- Divers ---------------- */
-QLabel a { color: #5B44E0; text-decoration: none; }
 QStatusBar { background: #ECEFF5; color: #5B6675; border-top: 1px solid #DCE2EC; }
 QStatusBar::item { border: 0; }
 QToolTip { background: #FFFFFF; color: #1B2230; border: 1px solid #C6CEDC; border-radius: 6px; padding: 6px 8px; }
