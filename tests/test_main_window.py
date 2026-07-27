@@ -29,6 +29,16 @@ def page(qtbot):
     return widget
 
 
+@pytest.fixture
+def settings_page(qtbot):
+    """Une SettingsPage isolée, sur des réglages neufs en mémoire."""
+    from app.ui.pages import SettingsPage
+
+    widget = SettingsPage(ApplicationSettings())
+    qtbot.addWidget(widget)
+    return widget
+
+
 def test_window_has_three_pages(window):
     assert window.stack.count() == 3
 
@@ -69,3 +79,88 @@ def test_set_media_enables_actions(page):
     assert page.queue_button.isEnabled()
     assert page.platform_pill.text() == "YouTube"
     assert page.media_title.text() == "Titre"
+
+
+def test_download_selectors_ignore_wheel(page):
+    from app.ui.widgets import NoWheelComboBox
+
+    for widget in (page.quality, page.format, page.codec, page.bitrate):
+        assert isinstance(widget, NoWheelComboBox)
+
+
+def test_settings_selectors_ignore_wheel(settings_page):
+    from app.ui.widgets import NoWheelComboBox, NoWheelSpinBox
+
+    for widget in (settings_page.organize, settings_page.theme):
+        assert isinstance(widget, NoWheelComboBox)
+    for widget in (settings_page.parallel, settings_page.history_limit):
+        assert isinstance(widget, NoWheelSpinBox)
+
+
+def test_update_channel_row_is_labelled(settings_page):
+    from PySide6.QtWidgets import QLabel
+
+    labels = [widget.text() for widget in settings_page.findChildren(QLabel)]
+    assert "Canal de mise à jour" in labels
+
+
+def test_channel_hint_describes_both_channels(settings_page):
+    hint = settings_page.channel_hint.text()
+    assert "LIVE" in hint and "EVO" in hint
+
+
+def test_channel_radio_writes_the_setting(settings_page):
+    settings_page.evo_radio.setChecked(True)
+    assert settings_page.settings.update_channel == "evo"
+    settings_page.live_radio.setChecked(True)
+    assert settings_page.settings.update_channel == "live"
+
+
+def test_sources_hint_is_visible_and_links_out(page):
+    from app.constants import SUPPORTED_SITES_URL
+
+    text = page.sources_hint.text()
+    assert "YouTube" in text
+    assert SUPPORTED_SITES_URL in text
+    assert page.sources_hint.openExternalLinks()
+    assert not page.sources_hint.isHidden()
+
+
+def test_sources_hint_survives_the_busy_cycle(page):
+    """Le spinner change de texte pendant l'analyse ; les sources non."""
+    before = page.sources_hint.text()
+    page.set_busy(True)
+    assert page.spinner.text() == "Analyse en cours…"
+    assert page.sources_hint.text() == before
+    page.set_busy(False)
+    assert page.sources_hint.text() == before
+
+
+@pytest.fixture
+def restore_app_theme():
+    """apply_theme mute la QApplication globale (style sheet + palette) ;
+    on restaure l'état d'origine pour ne pas polluer les tests suivants.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    style_sheet = app.styleSheet()
+    palette = app.palette()
+    yield app
+    app.setStyleSheet(style_sheet)
+    app.setPalette(palette)
+
+
+def test_apply_theme_sets_the_link_palette_colour(qtbot, restore_app_theme):
+    """Qt ne propage pas les règles QSS aux ancres d'un QLabel enrichi ;
+    apply_theme doit donc positionner la couleur via le rôle Link de la
+    palette pour que le lien de sources_hint ne s'affiche pas en bleu Qt.
+    """
+    from PySide6.QtGui import QColor, QPalette
+
+    from app.ui.theme import LINK_COLORS, apply_theme
+
+    app = restore_app_theme
+    for theme in ("dark", "light"):
+        resolved = apply_theme(app, theme)
+        assert app.palette().color(QPalette.ColorRole.Link) == QColor(LINK_COLORS[resolved])

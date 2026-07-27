@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
-    QComboBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -14,13 +13,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from app.models.application_settings import ApplicationSettings
-from app.ui.widgets import eyebrow_label, page_header
+from app.ui.widgets import NoWheelComboBox, NoWheelSpinBox, eyebrow_label, page_header
 from app.utils.filename import validate_output_template
 from app.version import __version__
 
@@ -92,13 +90,13 @@ class SettingsPage(QWidget):
         folder_row.addWidget(self.folder, 1)
         folder_row.addWidget(browse)
         form.addRow("Dossier par défaut", folder_row)
-        self.organize = QComboBox()
+        self.organize = NoWheelComboBox()
         self.organize.addItem("Tout dans le dossier choisi", "all")
         self.organize.addItem("Séparer Audio et Vidéos", "separate")
         self.organize.addItem("Créer un dossier par playlist", "playlist")
         self.organize.setCurrentIndex(max(0, self.organize.findData(self.settings.organize_mode)))
         form.addRow("Organisation", self.organize)
-        self.theme = QComboBox()
+        self.theme = NoWheelComboBox()
         self.theme.addItem("Sombre", "dark")
         self.theme.addItem("Clair", "light")
         self.theme.addItem("Système", "system")
@@ -115,14 +113,14 @@ class SettingsPage(QWidget):
         layout.addWidget(self._section("Téléchargements", "File d’attente, noms de fichiers et historique"))
         form = QFormLayout()
         form.setSpacing(12)
-        self.parallel = QSpinBox()
+        self.parallel = NoWheelSpinBox()
         self.parallel.setRange(1, 4)
         self.parallel.setValue(self.settings.parallel_downloads)
         form.addRow("Téléchargements simultanés", self.parallel)
         self.template = QLineEdit(self.settings.filename_template)
         self.template.setPlaceholderText("%(title)s [%(id)s].%(ext)s")
         form.addRow("Modèle de nom", self.template)
-        self.history_limit = QSpinBox()
+        self.history_limit = NoWheelSpinBox()
         self.history_limit.setRange(10, 5000)
         self.history_limit.setSingleStep(50)
         self.history_limit.setValue(self.settings.history_limit)
@@ -187,11 +185,9 @@ class SettingsPage(QWidget):
         self.check_updates_button.clicked.connect(self.check_updates_requested)
         row.addWidget(self.check_updates_button)
         layout.addLayout(row)
-        self.auto_check = QCheckBox("Vérifier les mises à jour au démarrage")
-        self.auto_check.setChecked(self.settings.auto_check_updates)
-        layout.addWidget(self.auto_check)
 
         channel_row = QHBoxLayout()
+        channel_row.setSpacing(18)
         self.live_radio = QRadioButton("LIVE (Stable)")
         self.evo_radio = QRadioButton("EVO (Beta)")
         self.channel_group = QButtonGroup(self)
@@ -202,11 +198,22 @@ class SettingsPage(QWidget):
         channel_row.addWidget(self.live_radio)
         channel_row.addWidget(self.evo_radio)
         channel_row.addStretch()
-        layout.addLayout(channel_row)
-        evo_hint = QLabel("Versions de test, potentiellement instables.")
-        evo_hint.setObjectName("mutedText")
-        evo_hint.setWordWrap(True)
-        layout.addWidget(evo_hint)
+        channel_form = QFormLayout()
+        channel_form.setSpacing(12)
+        channel_form.addRow("Canal de mise à jour", channel_row)
+        layout.addLayout(channel_form)
+
+        self.channel_hint = QLabel(
+            "LIVE : uniquement les versions stables.\n"
+            "EVO : versions de test en avant-première, parfois instables."
+        )
+        self.channel_hint.setObjectName("mutedText")
+        self.channel_hint.setWordWrap(True)
+        layout.addWidget(self.channel_hint)
+
+        self.auto_check = QCheckBox("Vérifier les mises à jour au démarrage")
+        self.auto_check.setChecked(self.settings.auto_check_updates)
+        layout.addWidget(self.auto_check)
 
         report_row = QHBoxLayout()
         report_hint = QLabel("Un souci ? Générez un rapport (logs anonymisés) et ouvrez un ticket.")
