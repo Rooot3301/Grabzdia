@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -117,9 +118,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Prêt — téléchargez uniquement les contenus que vous êtes autorisé à utiliser.")
 
     def _connect(self) -> None:
-        self.sidebar.navigated.connect(self.stack.setCurrentIndex)
-        # Refresh the dashboard KPI right when the user lands on it, so it
-        # never shows a stale count they collected before opening a page.
+        # Sidebar → animated navigation (setCurrentIndex + fade-in of the
+        # new page). Also fires _on_navigated for page-specific refreshes.
+        self.sidebar.navigated.connect(self._navigate_to)
         self.sidebar.navigated.connect(self._on_navigated)
 
         self.dashboard_page.navigate_download.connect(lambda: self._go_to(1))
@@ -176,9 +177,33 @@ class MainWindow(QMainWindow):
             self.addAction(action)
 
     def _go_to(self, index: int) -> None:
-        self.stack.setCurrentIndex(index)
+        self._navigate_to(index)
         self.sidebar.set_current(index)
         self._on_navigated(index)
+
+    def _navigate_to(self, index: int) -> None:
+        """Swap to page `index` with a short fade-in on the incoming widget.
+
+        Uses a QGraphicsOpacityEffect scoped to the target widget rather
+        than animating the whole stack : cheaper, and the finished handler
+        clears the effect so it doesn't linger on complex child paints.
+        """
+        widget = self.stack.widget(index)
+        self.stack.setCurrentIndex(index)
+        if widget is None:
+            return
+        effect = QGraphicsOpacityEffect(widget)
+        effect.setOpacity(0.0)
+        widget.setGraphicsEffect(effect)
+        animation = QPropertyAnimation(effect, b"opacity", widget)
+        animation.setDuration(160)
+        animation.setStartValue(0.0)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        animation.finished.connect(lambda w=widget: w.setGraphicsEffect(None))
+        # Keep a reference so Qt doesn't garbage-collect it mid-animation.
+        self._page_fade = animation
+        animation.start()
 
     def _on_navigated(self, index: int) -> None:
         # Only the dashboard needs re-computing on nav — other pages hold
