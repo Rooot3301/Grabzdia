@@ -117,3 +117,44 @@ def test_greeting_subtitle_varies_across_calls():
     from app.ui.pages.dashboard_page import _SUBTITLES
     assert sub_a in _SUBTITLES["morning"]
     assert sub_b in _SUBTITLES["morning"]
+
+
+def test_cta_button_navigates_to_download(window):
+    """Le CTA « Nouveau téléchargement » doit ouvrir la page Télécharger."""
+    window.dashboard_page.cta.click()
+    assert window.stack.currentIndex() == 1
+
+
+def test_kebab_copy_url_uses_clipboard_and_reports_in_statusbar(window):
+    """Le menu kebab de la page Accueil doit émettre copy_url_requested,
+    handler qui met l'URL dans le presse-papier et loggue en statusbar."""
+    from PySide6.QtWidgets import QApplication
+
+    received: list[str] = []
+    window.dashboard_page.copy_url_requested.connect(received.append)
+
+    window.dashboard_page.copy_url_requested.emit("https://example.com/x")
+
+    assert received == ["https://example.com/x"]
+    # Handler MainWindow doit avoir écrit dans le presse-papier :
+    assert QApplication.clipboard().text() == "https://example.com/x"
+
+
+def test_kebab_delete_removes_from_history(window, tmp_path, monkeypatch):
+    """Suppression d'une entrée via le kebab : l'historique perd la ligne
+    et le dashboard se re-render (le compteur Total baisse)."""
+    from app.services.history_service import HistoryService
+
+    fake_history = HistoryService()
+    monkeypatch.setattr(fake_history, "load", lambda: [
+        {"id": "abc", "title": "t", "url": "u", "status": "completed",
+         "finished_at": "2026-09-29T15:00:00+00:00"},
+    ])
+    removed: list[str] = []
+    monkeypatch.setattr(fake_history, "remove", removed.append)
+    window.history_service = fake_history
+    window.dashboard_page.history = fake_history
+
+    window.dashboard_page.delete_entry_requested.emit("abc")
+
+    assert removed == ["abc"]

@@ -126,6 +126,10 @@ class MainWindow(QMainWindow):
         self.dashboard_page.navigate_download.connect(lambda: self._go_to(1))
         self.dashboard_page.navigate_history.connect(lambda: self._go_to(2))
         self.dashboard_page.navigate_settings.connect(lambda: self._go_to(3))
+        self.dashboard_page.redownload_requested.connect(self._redownload)
+        self.dashboard_page.delete_entry_requested.connect(self._delete_history_entry)
+        self.dashboard_page.open_folder_requested.connect(self._open_history_folder)
+        self.dashboard_page.copy_url_requested.connect(self._copy_url_to_clipboard)
 
         self.download_page.analyze_requested.connect(self.metadata.analyze)
         self.download_page.job_ready.connect(self._on_job_ready)
@@ -353,6 +357,30 @@ class MainWindow(QMainWindow):
         if not job:
             return
         ErrorDialog(job.title, job.error, job.error_hint, job.error_output, self).exec()
+
+    # ---- dashboard kebab -------------------------------------------------
+    def _delete_history_entry(self, entry_id: str) -> None:
+        if not entry_id:
+            return
+        self.history_service.remove(entry_id)
+        self.history_page.refresh()
+        self.dashboard_page.refresh()
+
+    def _open_history_folder(self, entry: dict) -> None:
+        target = entry.get("final_path") or entry.get("destination") or ""
+        if not target:
+            return
+        path = Path(target)
+        folder = path if path.is_dir() else path.parent
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    def _copy_url_to_clipboard(self, url: str) -> None:
+        if not url:
+            return
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(url)
+        self.statusBar().showMessage("URL copiée dans le presse-papier.", 3000)
 
     def _show_history_error_details(self, entry: dict) -> None:
         ErrorDialog(
