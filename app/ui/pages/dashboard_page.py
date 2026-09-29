@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from app.models.download_job import DownloadStatus
 from app.services.history_service import HistoryService
-from app.ui.widgets import CircleGauge, MODE_LABELS, STATUS_LABELS, eyebrow_label, format_timestamp, load_icon
+from app.ui.widgets import MODE_LABELS, STATUS_LABELS, CircleGauge, eyebrow_label, format_timestamp, load_icon
 from app.utils.url_host import source_label
 
 
