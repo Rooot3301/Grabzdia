@@ -11,8 +11,11 @@ from app.services.bootstrap_service import (
     Component,
     download_file,
     extract_ffmpeg,
+    fetch_ffmpeg_sha256,
+    fetch_ytdlp_sha256,
     latest_ytdlp_version,
     read_ytdlp_version,
+    sha256_of_file,
     verify_executable,
 )
 from app.utils.paths import managed_binary_dir
@@ -64,6 +67,20 @@ class BootstrapWorker(QObject):
                 self.progress.emit(100)
                 return
         download_file(YTDLP_URL, target, self.progress.emit)
+        # Integrity check against the official SHA2-256SUMS release asset :
+        # si on ne peut pas récupérer la référence (offline, 5xx), on
+        # continue plutôt que bloquer — mais si on l'a et qu'elle ne
+        # correspond pas, on supprime le fichier et on refuse net (fichier
+        # potentiellement corrompu ou man-in-the-middle).
+        expected = fetch_ytdlp_sha256()
+        if expected:
+            actual = sha256_of_file(target)
+            if actual != expected:
+                target.unlink(missing_ok=True)
+                raise RuntimeError(
+                    "yt-dlp téléchargé ne correspond pas à l'empreinte officielle "
+                    "(fichier corrompu ou interception réseau)."
+                )
         if not verify_executable(target):
             raise RuntimeError("yt-dlp a été téléchargé mais ne s’exécute pas.")
 
@@ -71,6 +88,15 @@ class BootstrapWorker(QObject):
         with tempfile.TemporaryDirectory() as temporary:
             archive = Path(temporary) / "ffmpeg.zip"
             download_file(FFMPEG_ZIP_URL, archive, self.progress.emit)
+            expected = fetch_ffmpeg_sha256()
+            if expected:
+                actual = sha256_of_file(archive)
+                if actual != expected:
+                    raise RuntimeError(
+                        "L'archive FFmpeg téléchargée ne correspond pas à "
+                        "l'empreinte publiée par gyan.dev (fichier corrompu "
+                        "ou interception réseau)."
+                    )
             self.component_started.emit("FFmpeg (extraction)")
             extracted = extract_ffmpeg(archive, dest)
         names = {path.name for path in extracted}

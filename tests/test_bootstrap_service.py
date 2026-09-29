@@ -9,8 +9,11 @@ from app.services.bootstrap_service import (
     components_for,
     extract_ffmpeg,
     latest_ytdlp_version,
+    parse_ffmpeg_sha256_sidecar,
+    parse_ytdlp_sums,
     read_ytdlp_version,
     select_zip_members,
+    sha256_of_file,
 )
 
 
@@ -120,3 +123,42 @@ def test_latest_ytdlp_version_returns_empty_when_github_fails(monkeypatch):
 
     monkeypatch.setattr(bootstrap_service.urllib.request, "urlopen", boom)
     assert latest_ytdlp_version() == ""
+
+
+def test_sha256_of_file_matches_known_digest(tmp_path: Path):
+    """L'empreinte SHA-256 doit être calculée en chunks sans erreur sur un
+    fichier > 64 KiB (limite d'un chunk)."""
+    import hashlib
+
+    fixture = tmp_path / "blob.bin"
+    payload = b"grabzdia" * 20000  # ~160 KiB, force plusieurs chunks
+    fixture.write_bytes(payload)
+    expected = hashlib.sha256(payload).hexdigest()
+
+    assert sha256_of_file(fixture) == expected
+
+
+def test_parse_ytdlp_sums_finds_the_windows_binary():
+    """Le fichier SHA2-256SUMS de yt-dlp liste plusieurs cibles ; on doit
+    prendre la ligne yt-dlp.exe et pas une autre variante."""
+    sums = (
+        "1234567890abcdef *yt-dlp\n"
+        "abcdef1234567890 *yt-dlp.exe\n"
+        "deadbeefcafebabe *yt-dlp_macos\n"
+    )
+    assert parse_ytdlp_sums(sums, "yt-dlp.exe") == "abcdef1234567890"
+
+
+def test_parse_ytdlp_sums_returns_empty_when_target_absent():
+    assert parse_ytdlp_sums("abc *yt-dlp\n", "yt-dlp.exe") == ""
+
+
+def test_parse_ffmpeg_sha256_sidecar_extracts_hex():
+    assert parse_ffmpeg_sha256_sidecar("deadbeef  ffmpeg-release-essentials.zip\n") == "deadbeef"
+    # Certaines sources publient juste l'empreinte sans nom de fichier.
+    assert parse_ffmpeg_sha256_sidecar("cafebabe\n") == "cafebabe"
+
+
+def test_parse_ffmpeg_sha256_sidecar_empty_is_safe():
+    assert parse_ffmpeg_sha256_sidecar("") == ""
+    assert parse_ffmpeg_sha256_sidecar("   \n") == ""
