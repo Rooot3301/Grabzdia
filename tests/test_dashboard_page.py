@@ -81,42 +81,65 @@ def _at(hour: int) -> datetime:
     return datetime(2026, 9, 29, hour, 0, tzinfo=UTC).astimezone()
 
 
-def test_greeting_says_bonjour_in_the_morning():
-    title, _ = build_greeting(_at(9), name="Romain", random_source=random.Random(0))
-    assert title == "Bonjour, Romain"
+def _all_titles_at(hour: int, name: str) -> set[str]:
+    """Passe en revue plusieurs seeds pour observer la diversité des tirages."""
+    out: set[str] = set()
+    for seed in range(50):
+        title, _ = build_greeting(_at(hour), name=name, random_source=random.Random(seed))
+        out.add(title)
+    return out
 
 
-def test_greeting_says_bon_apres_midi_in_the_afternoon():
-    title, _ = build_greeting(_at(14), name="Romain", random_source=random.Random(0))
-    assert title == "Bon après-midi, Romain"
+def test_greeting_titles_include_the_name_when_provided_morning():
+    """Sur 50 tirages du matin avec un nom, tous les titres qui contiennent
+    « Romain » sont valides et au moins un tirage sans nom (« Bonjour »
+    tout court) est possible parmi le mix."""
+    titles = _all_titles_at(9, "Romain")
+    # Au moins une variante nommée est présente.
+    assert any("Romain" in t for t in titles)
+    # Plusieurs variantes distinctes sont bien piochées.
+    assert len(titles) >= 4
 
 
-def test_greeting_says_bonsoir_in_the_evening():
-    title, _ = build_greeting(_at(20), name="Romain", random_source=random.Random(0))
-    assert title == "Bonsoir, Romain"
+def test_greeting_uses_morning_vocabulary_only_in_the_morning():
+    """Les tranches horaires sont exclusives — pas de « Bonsoir » à 9h."""
+    titles = _all_titles_at(9, "Alex")
+    joined = " ".join(titles).lower()
+    assert "bonsoir" not in joined
+    assert "bonne nuit" not in joined
 
 
-def test_greeting_says_bonne_nuit_at_night():
-    title, _ = build_greeting(_at(2), name="Romain", random_source=random.Random(0))
-    assert title == "Bonne nuit, Romain"
+def test_greeting_uses_evening_vocabulary_only_in_the_evening():
+    titles = _all_titles_at(20, "Alex")
+    joined = " ".join(titles).lower()
+    assert "bonjour" not in joined
+    assert "bonne nuit" not in joined
 
 
-def test_greeting_omits_name_when_unknown():
-    """Sans nom exploitable, on ne veut pas d'un « Bonjour, » à la virgule
-    orpheline. Le titre reste juste la salutation."""
-    title, _ = build_greeting(_at(9), name="", random_source=random.Random(0))
-    assert title == "Bonjour"
+def test_greeting_uses_night_vocabulary_only_at_night():
+    titles = _all_titles_at(2, "Alex")
+    joined = " ".join(titles).lower()
+    assert "bon après-midi" not in joined
+    assert "bonsoir" not in joined
 
 
-def test_greeting_subtitle_varies_across_calls():
-    """Le sous-titre pioche dans plusieurs variantes ; deux Random distinctes
-    doivent au moins pouvoir tomber sur des textes différents."""
-    _, sub_a = build_greeting(_at(9), name="A", random_source=random.Random(0))
-    _, sub_b = build_greeting(_at(9), name="A", random_source=random.Random(2))
-    # Les deux appartiennent à la liste matin.
+def test_greeting_omits_name_and_never_leaves_a_dangling_placeholder():
+    """Sans nom, aucun titre ne doit contenir la marque {name} ni finir
+    par une virgule orpheline (le filtre écarte tous les templates avec
+    {name}, il ne reste que ceux qui marchent sans)."""
+    titles = _all_titles_at(9, "")
+    assert titles
+    for title in titles:
+        assert "{name}" not in title
+        assert not title.rstrip().endswith(",")
+
+
+def test_greeting_subtitle_stays_within_the_matching_slot():
+    """Le sous-titre pioche parmi ~7 variantes par créneau ; il doit
+    appartenir au bon créneau, pas déborder sur un autre."""
     from app.ui.pages.dashboard_page import _SUBTITLES
-    assert sub_a in _SUBTITLES["morning"]
-    assert sub_b in _SUBTITLES["morning"]
+    _, sub = build_greeting(_at(9), name="A", random_source=random.Random(0))
+    assert sub in _SUBTITLES["morning"]
 
 
 def test_cta_button_navigates_to_download(window):

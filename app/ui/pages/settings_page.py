@@ -83,6 +83,10 @@ class SettingsPage(QWidget):
         layout.addWidget(self._section("Général", "Destination et organisation des fichiers"))
         form = QFormLayout()
         form.setSpacing(12)
+        self.display_name = QLineEdit(self.settings.display_name)
+        self.display_name.setPlaceholderText("Comment tu veux qu'on t'appelle ?")
+        self.display_name.setMaxLength(40)
+        form.addRow("Votre prénom", self.display_name)
         self.folder = QLineEdit(self.settings.default_download_directory)
         browse = QPushButton("Parcourir…")
         browse.clicked.connect(self._browse)
@@ -280,6 +284,7 @@ class SettingsPage(QWidget):
             self.feedback.setStyleSheet("color: #FF9BA6;")
             self.feedback.setText(str(error))
             return
+        self.settings.display_name = self.display_name.text().strip()
         self.settings.default_download_directory = self.folder.text().strip()
         self.settings.parallel_downloads = self.parallel.value()
         self.settings.organize_mode = self.organize.currentData()

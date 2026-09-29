@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.models.application_settings import ApplicationSettings
 from app.models.download_job import DownloadStatus
 from app.services.history_service import HistoryService
 from app.ui.widgets import MODE_LABELS, STATUS_LABELS, CircleGauge, eyebrow_label, format_timestamp, load_icon
@@ -38,34 +39,80 @@ def _time_slot(now: datetime) -> str:
     return "night"
 
 
-_GREETINGS = {"morning": "Bonjour", "afternoon": "Bon après-midi",
-              "evening": "Bonsoir", "night": "Bonne nuit"}
+# Salutations par créneau — mix de tonalités : classique, familier, taquin,
+# rassurant. Le placeholder {name} est remplacé quand un nom est disponible,
+# sinon la phrase est utilisée telle quelle (les templates sans placeholder
+# marchent dans les deux cas).
+_TITLES = {
+    "morning": [
+        "Bonjour {name}", "Salut {name}", "Bien dormi, {name}",
+        "Hello {name}", "Coucou {name}", "Prêt {name} ?",
+        "Debout {name}", "Bonjour", "Salut", "Bien réveillé ?",
+        "Yo {name}", "Un café, {name} ?", "Content de te revoir, {name}",
+    ],
+    "afternoon": [
+        "Bon après-midi {name}", "Rebonjour {name}", "Salut {name}",
+        "Hello {name}", "Yo {name}", "Content de te revoir, {name}",
+        "Toujours là, {name} ?", "Bon après-midi", "Salut",
+        "Ça bosse dur, {name} ?", "On continue, {name}",
+    ],
+    "evening": [
+        "Bonsoir {name}", "Salut {name}", "Hello {name}",
+        "Bienvenue {name}", "Content de te revoir, {name}",
+        "Bonsoir", "Salut", "Hey {name}", "On se détend, {name} ?",
+        "La soirée commence, {name}", "Yo {name}",
+    ],
+    "night": [
+        "Bonne nuit {name}", "Toujours debout, {name} ?",
+        "Insomnie, {name} ?", "Hey {name}, tard ce soir",
+        "La nuit, ce silence propice", "Bonne nuit",
+        "Silencieux comme toi, {name}", "Yo {name}, respect pour l'heure",
+    ],
+}
 
 _SUBTITLES = {
     "morning": [
         "On télécharge quoi aujourd'hui ?",
         "Prêt à démarrer la journée ?",
         "Un lien à récupérer avant le café ?",
+        "La file t'attend, calme et prête.",
+        "De quoi occuper la matinée ?",
+        "Une idée en tête pour aujourd'hui ?",
+        "Que veux-tu capturer ce matin ?",
     ],
     "afternoon": [
         "On continue sur quoi ?",
         "Une pause média ?",
         "Qu'est-ce qu'on ajoute à la file ?",
+        "L'après-midi est propice au binge, non ?",
+        "Une petite envie de découverte ?",
+        "Que veux-tu attraper avant ce soir ?",
+        "La suite de la matinée ?",
     ],
     "evening": [
         "On écoute quoi ce soir ?",
         "Un dernier téléchargement avant de couper ?",
         "Prêt pour la playlist du soir ?",
+        "L'ambiance du soir se prépare.",
+        "Une trouvaille à sauvegarder ?",
+        "Le canapé, un thé, et un bon fichier ?",
+        "Que veux-tu emporter pour la soirée ?",
     ],
     "night": [
         "Encore debout ? Un dernier lien ?",
         "Silencieux et efficace, comme d'habitude.",
         "La file tourne pendant que tu dors.",
+        "Le calme de la nuit pour bosser.",
+        "Un dernier téléchargement avant de dormir ?",
+        "Personne pour te déranger à cette heure.",
+        "La nuit porte conseil, et bande passante.",
     ],
 }
 
 
 def _display_name() -> str:
+    """Nom par défaut inféré depuis Windows/POSIX, filtre les identifiants
+    génériques (user, root, admin, vide). Retourne '' si rien d'utilisable."""
     raw = (os.environ.get("USERNAME") or os.environ.get("USER") or "").strip()
     if not raw or raw.lower() in {"user", "root", "administrator", "admin"}:
         return ""
@@ -74,11 +121,25 @@ def _display_name() -> str:
 
 def build_greeting(now: datetime | None = None, name: str | None = None,
                     random_source: random.Random | None = None) -> tuple[str, str]:
+    """Retourne (titre, sous-titre) selon l'heure et le nom fourni.
+
+    `name=None` → auto-détection env (Windows/POSIX). `name=""` explicite →
+    on force l'absence de nom (permet à un utilisateur qui a « skip »
+    l'onboarding de ne jamais voir son login système apparaître).
+
+    Chaque tirage produit un titre parmi ~10-13 templates par créneau,
+    dont certains incluent {name} et d'autres pas — quand le nom est vide,
+    les templates avec {name} sont écartés (fallback sur les autres).
+    """
     reference = (now or datetime.now(UTC)).astimezone()
     slot = _time_slot(reference)
-    who = name if name is not None else _display_name()
-    title = f"{_GREETINGS[slot]}, {who}" if who else _GREETINGS[slot]
+    who = _display_name() if name is None else name
     picker = random_source or random.Random()
+
+    candidates = _TITLES[slot]
+    if not who:
+        candidates = [t for t in candidates if "{name}" not in t]
+    title = picker.choice(candidates).format(name=who).strip()
     subtitle = picker.choice(_SUBTITLES[slot])
     return title, subtitle
 
@@ -145,9 +206,11 @@ class DashboardPage(QWidget):
     open_folder_requested = Signal(object)
     copy_url_requested = Signal(str)
 
-    def __init__(self, history: HistoryService, parent: QWidget | None = None) -> None:
+    def __init__(self, history: HistoryService, settings: ApplicationSettings,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.history = history
+        self.settings = settings
 
         root = QVBoxLayout(self)
         root.setContentsMargins(32, 28, 32, 28)
@@ -324,9 +387,10 @@ class DashboardPage(QWidget):
 
     # ---- refresh -------------------------------------------------------
     def refresh(self) -> None:
-        title, subtitle = build_greeting()
-        # 👋 glissé dans le titre pour la note humaine (unicode direct, pas
-        # d'asset), retiré si le titre est vide (edge case défensif).
+        # Nom paramétré > détection env. Vide → build_greeting retombe sur
+        # l'env via son argument name=None ; toute chaîne non-vide gagne.
+        chosen = self.settings.display_name.strip() or None
+        title, subtitle = build_greeting(name=chosen)
         self._greeting_title.setText(f"{title}  👋" if title else "")
         self._greeting_subtitle.setText(subtitle)
 

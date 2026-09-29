@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QUrl
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
@@ -94,6 +94,10 @@ class MainWindow(QMainWindow):
         self._maybe_auto_update()
         if self.settings.auto_check_updates:
             self._check_updates(silent=True)
+        # Différé au prochain tick d'event loop pour que la fenêtre principale
+        # soit visible avant la modale d'onboarding — sinon elle apparaît
+        # avant qu'on ne voie sur quoi elle se pose.
+        QTimer.singleShot(200, self._maybe_show_onboarding)
 
     # ---- construction ------------------------------------------------------
     def _build_ui(self) -> None:
@@ -105,7 +109,7 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar()
         self.stack = QStackedWidget()
 
-        self.dashboard_page = DashboardPage(self.history_service)
+        self.dashboard_page = DashboardPage(self.history_service, self.settings)
         self.download_page = DownloadPage(self.settings)
         self.history_page = HistoryPage(self.history_service)
         self.settings_page = SettingsPage(self.settings)
@@ -404,6 +408,9 @@ class MainWindow(QMainWindow):
         apply_theme(QApplication.instance(), self.settings.theme)
         self.manager.start_available()
         self.download_page.refresh_settings()
+        # Le prénom paramétré alimente la salutation du dashboard : sans
+        # refresh, la modification n'est visible qu'au prochain aller-retour.
+        self.dashboard_page.refresh()
         self._update_stats()
         self.statusBar().showMessage("Paramètres enregistrés.", 4000)
 
@@ -431,6 +438,23 @@ class MainWindow(QMainWindow):
         else:
             self.sidebar.set_status("Composants prêts", "ok")
             self.settings_page.set_component_status("yt-dlp et FFmpeg sont installés et prêts.")
+
+    def _maybe_show_onboarding(self) -> None:
+        """Petit dialogue « apprenons à nous connaître » au premier lancement.
+
+        Ne réapparaît jamais après (onboarding_completed=True est écrit dès
+        que la modale se ferme, que l'utilisateur ait tapé quelque chose ou
+        cliqué « Plus tard »)."""
+        if self.settings.onboarding_completed:
+            return
+        from app.ui.onboarding_dialog import OnboardingDialog
+
+        dialog = OnboardingDialog(self.settings.display_name, self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            self.settings.display_name = dialog.chosen_name()
+        self.settings.onboarding_completed = True
+        self.settings_service.save(self.settings)
+        self.dashboard_page.refresh()
 
     def _maybe_auto_update(self) -> None:
         if self.settings.auto_update_ytdlp and "yt-dlp" not in self.binaries.missing():

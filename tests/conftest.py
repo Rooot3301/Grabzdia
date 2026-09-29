@@ -35,6 +35,9 @@ def window(qtbot, monkeypatch):
     # auto_update_ytdlp est vrai par défaut : sans mock, chaque construction
     # lance BootstrapWorker qui interroge GitHub et télécharge yt-dlp.exe.
     monkeypatch.setattr(MainWindow, "_update_ytdlp", lambda self, *args, **kwargs: None, raising=False)
+    # Onboarding_completed=False par défaut → sans mock, chaque MainWindow
+    # planifie une modale bloquante 200 ms après construction.
+    monkeypatch.setattr(MainWindow, "_maybe_show_onboarding", lambda self: None, raising=False)
     win = MainWindow()
     qtbot.addWidget(win)
     return win
