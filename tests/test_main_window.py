@@ -193,8 +193,11 @@ def test_logged_ytdlp_output_redacts_url_secrets(window, caplog):
     with caplog.at_level(logging.INFO):
         window.manager.job_output.emit("[download] https://r1.googlevideo.com/videoplayback?expire=1&signature=deadbeef")
 
+    # redact_secrets remplace la valeur par "[REDACTED]" avant que urlencode ne
+    # ré-échappe les crochets en %5BREDACTED%5D — les deux formes sont sûres,
+    # le mot REDACTED reste lisible pour un humain qui parcourt le rapport.
     assert "deadbeef" not in caplog.text
-    assert "[REDACTED]" in caplog.text
+    assert "REDACTED" in caplog.text
 
 
 def test_maybe_auto_update_asks_for_silent_ytdlp_update(window, monkeypatch):
