@@ -14,6 +14,9 @@ def window(qtbot, monkeypatch):
 
     # Never hit the network for the startup update check during tests.
     monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
+    # auto_update_ytdlp est vrai par défaut : sans mock, chaque construction
+    # lance BootstrapWorker qui interroge GitHub et télécharge yt-dlp.exe.
+    monkeypatch.setattr(MainWindow, "_update_ytdlp", lambda self, *args, **kwargs: None, raising=False)
     win = MainWindow()
     qtbot.addWidget(win)
     return win
@@ -164,3 +167,76 @@ def test_apply_theme_sets_the_link_palette_colour(qtbot, restore_app_theme):
     for theme in ("dark", "light"):
         resolved = apply_theme(app, theme)
         assert app.palette().color(QPalette.ColorRole.Link) == QColor(LINK_COLORS[resolved])
+
+
+def test_ytdlp_output_reaches_the_log_panel(window):
+    """Le panneau Ctrl+L doit montrer la sortie de yt-dlp, pas rester vide."""
+    window.manager.job_output.emit("[download] Destination: piste.mp3")
+
+    assert "[download] Destination: piste.mp3" in window.download_page.logs.toPlainText()
+
+
+def test_ytdlp_output_is_written_to_the_session_log(window, caplog):
+    """Sans cette ligne dans le fichier, « Signaler un problème » n'emporte rien."""
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        window.manager.job_output.emit("ERROR: Video unavailable")
+
+    assert "ERROR: Video unavailable" in caplog.text
+
+
+def test_logged_ytdlp_output_redacts_url_secrets(window, caplog):
+    """Le rapport part sur un ticket public : les URL signées doivent être masquées."""
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        window.manager.job_output.emit("[download] https://r1.googlevideo.com/videoplayback?expire=1&signature=deadbeef")
+
+    # redact_secrets remplace la valeur par "[REDACTED]" avant que urlencode ne
+    # ré-échappe les crochets en %5BREDACTED%5D — les deux formes sont sûres,
+    # le mot REDACTED reste lisible pour un humain qui parcourt le rapport.
+    assert "deadbeef" not in caplog.text
+    assert "REDACTED" in caplog.text
+
+
+def test_maybe_auto_update_asks_for_silent_ytdlp_update(window, monkeypatch):
+    """L'auto-update au démarrage passe silent=True (pas de modale si offline)."""
+    calls: list[dict] = []
+    monkeypatch.setattr(window, "_update_ytdlp", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(window.binaries, "missing", lambda: [])
+    window.settings.auto_update_ytdlp = True
+
+    window._maybe_auto_update()
+
+    assert calls == [{"silent": True}]
+
+
+def test_silent_ytdlp_failure_does_not_show_a_modal(window, monkeypatch):
+    """Une màj échouée au démarrage ne doit pas ouvrir de QMessageBox — juste écrire dans les paramètres."""
+    errors: list[str] = []
+    monkeypatch.setattr(window, "_error", errors.append)
+    window._ytdlp_update_silent = True
+
+    window._ytdlp_updated(False, "Échec réseau : vérifiez votre connexion Internet, puis réessayez.")
+
+    assert errors == []
+
+
+def test_manual_ytdlp_failure_still_shows_a_modal(window, monkeypatch):
+    """Le clic manuel « Mettre à jour yt-dlp » doit toujours signaler l'échec."""
+    errors: list[str] = []
+    monkeypatch.setattr(window, "_error", errors.append)
+    window._ytdlp_update_silent = False
+
+    window._ytdlp_updated(False, "Échec du téléchargement : ...")
+
+    assert errors == ["Échec du téléchargement : ..."]
+
+
+def test_default_settings_enable_auto_ytdlp_update():
+    """Par défaut yt-dlp doit se mettre à jour tout seul, sinon l'utilisateur reste
+    coincé sur une version cassée par YouTube tant qu'il n'ouvre pas les paramètres."""
+    from app.models.application_settings import ApplicationSettings
+
+    assert ApplicationSettings().auto_update_ytdlp is True

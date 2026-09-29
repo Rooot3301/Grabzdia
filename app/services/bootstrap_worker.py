@@ -11,6 +11,8 @@ from app.services.bootstrap_service import (
     Component,
     download_file,
     extract_ffmpeg,
+    latest_ytdlp_version,
+    read_ytdlp_version,
     verify_executable,
 )
 from app.utils.paths import managed_binary_dir
@@ -51,6 +53,16 @@ class BootstrapWorker(QObject):
 
     def _install_ytdlp(self, dest: Path) -> None:
         target = dest / "yt-dlp.exe"
+        # Skip the ~20 MB download when the local build already matches the
+        # latest GitHub tag. Silent probes: if either version lookup fails
+        # (offline, GitHub 5xx, rate limit), we fall through to downloading
+        # rather than blocking startup.
+        if target.is_file():
+            local = read_ytdlp_version(target)
+            latest = latest_ytdlp_version()
+            if local and latest and local == latest:
+                self.progress.emit(100)
+                return
         download_file(YTDLP_URL, target, self.progress.emit)
         if not verify_executable(target):
             raise RuntimeError("yt-dlp a été téléchargé mais ne s’exécute pas.")

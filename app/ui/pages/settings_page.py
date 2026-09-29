@@ -128,6 +128,13 @@ class SettingsPage(QWidget):
         self.archive = QCheckBox("Éviter de télécharger deux fois le même média")
         self.archive.setChecked(self.settings.use_download_archive)
         form.addRow("Archive anti-doublons", self.archive)
+        self.sponsorblock = QCheckBox("Retirer les segments sponsorisés des vidéos YouTube")
+        self.sponsorblock.setChecked(self.settings.sponsorblock_remove)
+        form.addRow("SponsorBlock", self.sponsorblock)
+        sponsorblock_hint = QLabel("Ne fonctionne que sur YouTube. Le découpage rallonge le traitement.")
+        sponsorblock_hint.setObjectName("mutedText")
+        sponsorblock_hint.setWordWrap(True)
+        form.addRow("", sponsorblock_hint)
         layout.addLayout(form)
         return card
 
@@ -280,6 +287,7 @@ class SettingsPage(QWidget):
         self.settings.filename_template = template
         self.settings.history_limit = self.history_limit.value()
         self.settings.use_download_archive = self.archive.isChecked()
+        self.settings.sponsorblock_remove = self.sponsorblock.isChecked()
         self.settings.notifications = self.notifications.isChecked()
         self.settings.auto_update_ytdlp = self.auto_update.isChecked()
         self.settings.auto_check_updates = self.auto_check.isChecked()

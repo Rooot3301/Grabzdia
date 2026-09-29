@@ -1,11 +1,37 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon, QPainter, QPixmap, QWheelEvent
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QComboBox, QFrame, QLabel, QSpinBox, QVBoxLayout, QWidget
 
+from app.models.download_job import DownloadStatus
 from app.utils.paths import icon_path
+
+STATUS_LABELS = {
+    DownloadStatus.QUEUED: "En attente",
+    DownloadStatus.RUNNING: "Téléchargement",
+    DownloadStatus.PAUSED: "En pause",
+    DownloadStatus.COMPLETED: "Terminé",
+    DownloadStatus.FAILED: "Échec",
+    DownloadStatus.CANCELLED: "Annulé",
+}
+
+MODE_LABELS = {"video": "Vidéo", "audio": "Audio"}
+
+
+def format_timestamp(value: str) -> str:
+    """Horodatage ISO -> « 27/07/2026 09:15 », heure locale.
+
+    L’historique contient des entrées écrites par des versions antérieures :
+    une valeur inanalysable est rendue telle quelle plutôt que de lever.
+    """
+    try:
+        return datetime.fromisoformat(value).astimezone().strftime("%d/%m/%Y %H:%M")
+    except (TypeError, ValueError):
+        return value
 
 
 def load_icon(name: str) -> QIcon:

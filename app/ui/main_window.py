@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
@@ -28,11 +29,13 @@ from app.services.queue_service import QueueService
 from app.services.settings_service import SettingsService
 from app.services.taskbar_service import TaskbarProgress, average_progress
 from app.services.update_service import UpdateCheckWorker, choose_update
+from app.ui.error_dialog import ErrorDialog
 from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
 from app.ui.theme import apply_theme
 from app.ui.update_dialog import UpdateDialog
 from app.utils.filename import validate_output_template
+from app.utils.logging_utils import redact_secrets
 from app.utils.paths import app_icon_path, logo_path
 from app.version import __version__
 
@@ -104,6 +107,7 @@ class MainWindow(QMainWindow):
         self.download_page.retry_requested.connect(self.manager.retry)
         self.download_page.open_requested.connect(self._open_target)
         self.download_page.play_requested.connect(self._play_job)
+        self.download_page.error_details_requested.connect(self._show_error_details)
 
         self.metadata.succeeded.connect(self._metadata_ready)
         self.metadata.failed.connect(self._error)
@@ -111,6 +115,7 @@ class MainWindow(QMainWindow):
 
         self.manager.job_updated.connect(self._job_updated)
         self.manager.job_finished.connect(self._job_finished)
+        self.manager.job_output.connect(self._log_output)
 
         self.settings_page.saved.connect(self._settings_saved)
         self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
@@ -119,6 +124,7 @@ class MainWindow(QMainWindow):
         self.settings_page.about_requested.connect(self._show_about)
         self.history_page.redownload_requested.connect(self._redownload)
         self.history_page.play_requested.connect(lambda path: self._play_file(path))
+        self.history_page.entry_details_requested.connect(self._show_history_error_details)
 
         self.notifications.activated.connect(self._raise_window)
 
@@ -212,6 +218,16 @@ class MainWindow(QMainWindow):
         self._go_to(0)
         self._update_stats()
 
+    def _log_output(self, line: str) -> None:
+        """Consigner une ligne de yt-dlp, secrets masqués.
+
+        Le fichier de session est ce que « Signaler un problème » joint à un
+        ticket public : les URL signées y passent donc par redact_secrets.
+        """
+        clean = redact_secrets(line)
+        logging.info("yt-dlp: %s", clean)
+        self.download_page.write_log(clean)
+
     def _job_updated(self, job: DownloadJob) -> None:
         self.download_page.update_job(job)
         self._update_stats()
@@ -266,6 +282,21 @@ class MainWindow(QMainWindow):
         except Exception as error:
             self._error(str(error))
 
+    def _show_error_details(self, job_id: str) -> None:
+        job = next((item for item in self.manager.jobs if item.id == job_id), None)
+        if not job:
+            return
+        ErrorDialog(job.title, job.error, job.error_hint, job.error_output, self).exec()
+
+    def _show_history_error_details(self, entry: dict) -> None:
+        ErrorDialog(
+            str(entry.get("title", "")),
+            str(entry.get("error", "")),
+            str(entry.get("error_hint", "")),
+            str(entry.get("error_output", "")),
+            self,
+        ).exec()
+
     # ---- settings ----------------------------------------------------------
     def _settings_saved(self) -> None:
         try:
@@ -309,7 +340,10 @@ class MainWindow(QMainWindow):
 
     def _maybe_auto_update(self) -> None:
         if self.settings.auto_update_ytdlp and "yt-dlp" not in self.binaries.missing():
-            self._update_ytdlp()
+            # Silent at startup: an offline machine (or GitHub 5xx) must NOT
+            # greet the user with a modal warning on every launch. Manual
+            # clicks in the Settings page keep the modal.
+            self._update_ytdlp(silent=True)
 
     def _check_updates(self, silent: bool) -> None:
         self._update_silent = silent
@@ -338,7 +372,8 @@ class MainWindow(QMainWindow):
         elif not silent:
             self.settings_page.set_update_status(f"Grabzdia est à jour (version {__version__}).")
 
-    def _update_ytdlp(self) -> None:
+    def _update_ytdlp(self, silent: bool = False) -> None:
+        self._ytdlp_update_silent = silent
         self.settings_page.set_update_enabled(False)
         worker = BootstrapWorker([COMPONENTS["yt-dlp"]])
         # Bound methods so GUI updates run on the GUI thread (queued connection).
@@ -351,13 +386,15 @@ class MainWindow(QMainWindow):
         self.settings_page.set_component_status(f"Téléchargement de yt-dlp… {percent} %")
 
     def _ytdlp_updated(self, success: bool, message: str) -> None:
+        silent = getattr(self, "_ytdlp_update_silent", False)
         self.settings_page.set_update_enabled(True)
         if success:
             self._refresh_binary_status()
             self.statusBar().showMessage("yt-dlp mis à jour.", 4000)
         else:
             self.settings_page.set_component_status(message)
-            self._error(message)
+            if not silent:
+                self._error(message)
 
     def _show_about(self) -> None:
         from app.ui.about_dialog import AboutDialog

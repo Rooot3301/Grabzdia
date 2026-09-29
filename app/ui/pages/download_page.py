@@ -44,6 +44,7 @@ class DownloadPage(QWidget):
     open_requested = Signal(str)
     play_requested = Signal(str)
     options_remembered = Signal()
+    error_details_requested = Signal(str)
 
     def __init__(self, settings: ApplicationSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -345,6 +346,7 @@ class DownloadPage(QWidget):
             embed_thumbnail=self.thumbnail_box.isChecked(),
             playlist=self.playlist.isChecked(),
             use_archive=self.settings.use_download_archive,
+            sponsorblock=self.settings.sponsorblock_remove,
         )
 
     def _enqueue(self, start: bool) -> None:
@@ -460,6 +462,7 @@ class DownloadPage(QWidget):
             item.retry_requested.connect(self.retry_requested)
             item.open_requested.connect(self.open_requested)
             item.play_requested.connect(self.play_requested)
+            item.details_requested.connect(self.error_details_requested)
             self.items[job.id] = item
             self.queue_layout.insertWidget(self.queue_layout.count() - 1, item)
             self.queue_empty.setVisible(False)

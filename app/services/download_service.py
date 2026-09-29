@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from datetime import UTC, datetime
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
@@ -12,14 +13,17 @@ def _utf8_environment() -> QProcessEnvironment:
     environment.insert("PYTHONUTF8", "1")
     return environment
 
-from app.constants import FINAL_PATH_PREFIX, PROGRESS_PREFIX
+from app.constants import FINAL_PATH_PREFIX, PROGRESS_PREFIX, SPONSORBLOCK_CATEGORIES
 from app.models.download_job import DownloadJob, DownloadStatus
+from app.parsers.error_parser import diagnose
 from app.parsers.progress_parser import parse_progress
 from app.services.binary_service import BinaryService
 from app.services.format_service import FormatService
 from app.utils.filename import validate_output_template
 from app.utils.paths import archive_path
 from app.utils.url_validator import validate_media_url
+
+TAIL_LINES = 50
 
 
 class DownloadRunner(QObject):
@@ -34,6 +38,7 @@ class DownloadRunner(QObject):
         self.binaries = binaries
         self.process: QProcess | None = None
         self.cancelled = False
+        self.tail: deque[str] = deque(maxlen=TAIL_LINES)
 
     def arguments(self) -> list[str]:
         validate_media_url(self.job.url)
@@ -56,6 +61,8 @@ class DownloadRunner(QObject):
             args.append("--no-playlist")
         if self.job.use_archive:
             args += ["--download-archive", str(archive_path())]
+        if self.job.sponsorblock:
+            args += ["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES]
         if self.job.subtitles:
             args.append("--write-subs")
         if self.job.auto_subtitles:
@@ -107,6 +114,7 @@ class DownloadRunner(QObject):
                     self.job.final_path = parsed.final_path
                 self.progress.emit(self.job.id, parsed)
             else:
+                self.tail.append(raw)
                 self.output.emit(raw)
 
     def _done(self, code: int, _status: QProcess.ExitStatus) -> None:
@@ -119,7 +127,10 @@ class DownloadRunner(QObject):
             self.finished.emit(self.job.id)
         else:
             self.job.status = DownloadStatus.FAILED
-            self.failed.emit(self.job.id, "Le téléchargement a échoué.")
+            diagnosis = diagnose(list(self.tail), code)
+            self.job.error_hint = diagnosis.hint
+            self.job.error_output = diagnosis.raw
+            self.failed.emit(self.job.id, diagnosis.reason)
         if self.process:
             self.process.deleteLater()
             self.process = None
@@ -139,6 +150,9 @@ class DownloadRunner(QObject):
 class DownloadManager(QObject):
     job_updated = Signal(object)
     job_finished = Signal(object)
+    # Chaque ligne non-progression de yt-dlp, relayée telle quelle : c'est la
+    # seule trace de ce qui s'est réellement passé quand un téléchargement échoue.
+    job_output = Signal(str)
 
     def __init__(self, binaries: BinaryService, maximum: int = 2, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -163,6 +177,7 @@ class DownloadManager(QObject):
             runner.progress.connect(self._progress)
             runner.finished.connect(self._complete)
             runner.failed.connect(self._failed)
+            runner.output.connect(self.job_output)
             runner.start()
             self.job_updated.emit(job)
 
@@ -203,6 +218,8 @@ class DownloadManager(QObject):
         job = self.find(job_id)
         job.status = DownloadStatus.QUEUED
         job.error = ""
+        job.error_hint = ""
+        job.error_output = ""
         job.progress = 0
         self.job_updated.emit(job)
         self.start_available()

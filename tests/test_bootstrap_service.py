@@ -4,9 +4,12 @@ import io
 import zipfile
 from pathlib import Path
 
+from app.services import bootstrap_service
 from app.services.bootstrap_service import (
     components_for,
     extract_ffmpeg,
+    latest_ytdlp_version,
+    read_ytdlp_version,
     select_zip_members,
 )
 
@@ -64,3 +67,56 @@ def test_extract_ffmpeg_writes_both_executables(tmp_path: Path):
     assert names == ["ffmpeg.exe", "ffprobe.exe"]
     assert (dest / "ffmpeg.exe").read_bytes() == b"FFMPEG-BINARY"
     assert (dest / "ffprobe.exe").read_bytes() == b"FFPROBE-BINARY"
+
+
+class _FakeCompleted:
+    def __init__(self, code: int, out: bytes = b"") -> None:
+        self.returncode = code
+        self.stdout = out
+        self.stderr = b""
+
+
+def test_read_ytdlp_version_returns_stripped_stdout(monkeypatch, tmp_path: Path):
+    """La sortie de `yt-dlp --version` doit être remontée nettoyée."""
+    fake = tmp_path / "yt-dlp.exe"
+    fake.write_bytes(b"stub")
+    monkeypatch.setattr(
+        bootstrap_service.subprocess, "run",
+        lambda *args, **kwargs: _FakeCompleted(0, b"2024.11.04\n"),
+    )
+    assert read_ytdlp_version(fake) == "2024.11.04"
+
+
+def test_read_ytdlp_version_returns_empty_on_failure(monkeypatch, tmp_path: Path):
+    """Échec de subprocess -> '' (le worker doit alors télécharger sans hésiter)."""
+    fake = tmp_path / "yt-dlp.exe"
+    fake.write_bytes(b"stub")
+
+    def boom(*args, **kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(bootstrap_service.subprocess, "run", boom)
+    assert read_ytdlp_version(fake) == ""
+
+
+def test_latest_ytdlp_version_reads_tag_name(monkeypatch):
+    """Réponse GitHub happy path : on remonte `tag_name`."""
+    class _Resp:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self): return b'{"tag_name": "2024.12.13"}'
+
+    monkeypatch.setattr(
+        bootstrap_service.urllib.request, "urlopen",
+        lambda request, timeout=10: _Resp(),
+    )
+    assert latest_ytdlp_version() == "2024.12.13"
+
+
+def test_latest_ytdlp_version_returns_empty_when_github_fails(monkeypatch):
+    """Hors ligne, 5xx, rate limit -> '' pour que le démarrage ne bloque jamais."""
+    def boom(*args, **kwargs):
+        raise OSError("no network")
+
+    monkeypatch.setattr(bootstrap_service.urllib.request, "urlopen", boom)
+    assert latest_ytdlp_version() == ""
