@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import random
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -16,8 +18,83 @@ from PySide6.QtWidgets import (
 
 from app.models.download_job import DownloadStatus
 from app.services.history_service import HistoryService
-from app.ui.widgets import eyebrow_label, format_timestamp, page_header
+from app.ui.widgets import eyebrow_label, format_timestamp
 from app.version import __version__
+
+
+# Quatre créneaux, sans overlap : minuit-4h59 la nuit, puis matin/après-midi/
+# soir. Choix français : « après-midi » distinct de « soir » parce que la
+# différence entre 14 h et 21 h côté ambiance est vraie.
+def _time_slot(now: datetime) -> str:
+    hour = now.hour
+    if 5 <= hour < 12:
+        return "morning"
+    if 12 <= hour < 18:
+        return "afternoon"
+    if 18 <= hour < 23:
+        return "evening"
+    return "night"
+
+
+_GREETINGS = {
+    "morning": "Bonjour",
+    "afternoon": "Bon après-midi",
+    "evening": "Bonsoir",
+    "night": "Bonne nuit",
+}
+
+_SUBTITLES = {
+    "morning": [
+        "On télécharge quoi aujourd'hui ?",
+        "Prêt à démarrer la journée ?",
+        "Un lien à récupérer avant le café ?",
+    ],
+    "afternoon": [
+        "On continue sur quoi ?",
+        "Une pause média ?",
+        "Qu'est-ce qu'on ajoute à la file ?",
+    ],
+    "evening": [
+        "On écoute quoi ce soir ?",
+        "Un dernier téléchargement avant de couper ?",
+        "Prêt pour la playlist du soir ?",
+    ],
+    "night": [
+        "Encore debout ? Un dernier lien ?",
+        "Silencieux et efficace, comme d'habitude.",
+        "La file tourne pendant que tu dors.",
+    ],
+}
+
+
+def _display_name() -> str:
+    """Nom à afficher dans la salutation, ou '' pour tomber sur « Bonjour, »
+    sans nom quand l'environnement n'en fournit pas.
+
+    Lit USERNAME (Windows) puis USER (POSIX), rejette les valeurs vides ou
+    du genre 'root'/'user' qui feraient sonner faux la salutation.
+    """
+    raw = (os.environ.get("USERNAME") or os.environ.get("USER") or "").strip()
+    if not raw or raw.lower() in {"user", "root", "administrator", "admin"}:
+        return ""
+    # Windows expose souvent l'identifiant en minuscules ; on capitalise le
+    # premier segment pour un affichage propre sans casser un « Jean-Marc ».
+    return raw.split()[0].capitalize()
+
+
+def build_greeting(now: datetime | None = None, name: str | None = None,
+                    random_source: random.Random | None = None) -> tuple[str, str]:
+    """Salutation (titre, sous-titre) selon l'heure et l'utilisateur.
+
+    Extraite pour tests : l'aléatoire du sous-titre est injectable.
+    """
+    reference = (now or datetime.now(UTC)).astimezone()
+    slot = _time_slot(reference)
+    who = name if name is not None else _display_name()
+    title = f"{_GREETINGS[slot]}, {who}" if who else _GREETINGS[slot]
+    picker = random_source or random.Random()
+    subtitle = picker.choice(_SUBTITLES[slot])
+    return title, subtitle
 
 
 def compute_stats(entries: list[dict[str, Any]], now: datetime | None = None) -> dict[str, Any]:
@@ -62,25 +139,6 @@ def compute_stats(entries: list[dict[str, Any]], now: datetime | None = None) ->
     }
 
 
-def _stat_card(label: str, value: str, *, hint: str = "") -> QFrame:
-    card = QFrame()
-    card.setObjectName("statCard")
-    layout = QVBoxLayout(card)
-    layout.setContentsMargins(18, 16, 18, 16)
-    layout.setSpacing(4)
-    layout.addWidget(eyebrow_label(label))
-    value_label = QLabel(value)
-    value_label.setObjectName("statValue")
-    layout.addWidget(value_label)
-    if hint:
-        hint_label = QLabel(hint)
-        hint_label.setObjectName("mutedText")
-        hint_label.setWordWrap(True)
-        layout.addWidget(hint_label)
-    layout.addStretch()
-    return card
-
-
 class DashboardPage(QWidget):
     """Home page: KPI at a glance + quick access to the main actions.
 
@@ -100,11 +158,25 @@ class DashboardPage(QWidget):
         root.setContentsMargins(36, 30, 36, 30)
         root.setSpacing(16)
 
-        root.addWidget(page_header(
-            "Bienvenue",
-            f"Vue d'ensemble de vos téléchargements — Grabzdia {__version__}.",
-            eyebrow="Accueil",
-        ))
+        # En-tête construit à la main (au lieu de page_header) pour que la
+        # salutation puisse changer à chaque refresh() sans reconstruire.
+        header = QWidget()
+        header.setObjectName("plainContainer")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(4)
+        header_layout.addWidget(eyebrow_label("Accueil"))
+        self._greeting_title = QLabel()
+        self._greeting_title.setObjectName("pageTitle")
+        header_layout.addWidget(self._greeting_title)
+        self._greeting_subtitle = QLabel()
+        self._greeting_subtitle.setObjectName("pageSubtitle")
+        self._greeting_subtitle.setWordWrap(True)
+        header_layout.addWidget(self._greeting_subtitle)
+        self._version_hint = QLabel(f"Grabzdia {__version__}")
+        self._version_hint.setObjectName("mutedText")
+        header_layout.addWidget(self._version_hint)
+        root.addWidget(header)
 
         # ---- KPI grid ------------------------------------------------------
         self._stats_grid = QGridLayout()
@@ -167,13 +239,14 @@ class DashboardPage(QWidget):
         recent_card = QFrame()
         recent_card.setObjectName("card")
         recent_layout = QVBoxLayout(recent_card)
-        recent_layout.setContentsMargins(20, 18, 20, 18)
-        recent_layout.setSpacing(8)
+        # Plus d'air : marges + interligne + eyebrow séparée du contenu.
+        recent_layout.setContentsMargins(24, 22, 24, 24)
+        recent_layout.setSpacing(14)
         recent_layout.addWidget(eyebrow_label("Derniers téléchargements"))
         self._recent_container = QWidget()
         self._recent_container_layout = QVBoxLayout(self._recent_container)
         self._recent_container_layout.setContentsMargins(0, 0, 0, 0)
-        self._recent_container_layout.setSpacing(6)
+        self._recent_container_layout.setSpacing(12)
         recent_layout.addWidget(self._recent_container)
         self._recent_empty = QLabel("Aucun téléchargement pour le moment.")
         self._recent_empty.setObjectName("mutedText")
@@ -185,6 +258,13 @@ class DashboardPage(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
+        # Re-pioche la salutation à chaque visite pour qu'elle change
+        # dans la journée (matin -> après-midi -> soir) et varie le
+        # sous-titre au fil des allers-retours.
+        title, subtitle = build_greeting()
+        self._greeting_title.setText(title)
+        self._greeting_subtitle.setText(subtitle)
+
         entries = self.history.load()
         stats = compute_stats(entries)
         self._stat_values["today"].setText(str(stats["today"]))
@@ -208,8 +288,9 @@ class DashboardPage(QWidget):
         row = QFrame()
         row.setObjectName("recentRow")
         layout = QHBoxLayout(row)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(10)
+        # Padding généreux : la carte doit respirer plutôt que compresser.
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(14)
         title = QLabel(str(entry.get("title", "")) or "(sans titre)")
         title.setObjectName("recentTitle")
         title.setWordWrap(False)

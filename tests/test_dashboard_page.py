@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import random
 from datetime import UTC, datetime, timedelta
 
 from app.models.download_job import DownloadStatus
-from app.ui.pages.dashboard_page import compute_stats
+from app.ui.pages.dashboard_page import build_greeting, compute_stats
 
 
 def _entry(status: str, finished_at: str) -> dict:
@@ -74,3 +75,45 @@ def test_dashboard_quick_actions_route_to_the_right_pages(window):
     assert window.stack.currentIndex() == 2
     window.dashboard_page.navigate_settings.emit()
     assert window.stack.currentIndex() == 3
+
+
+def _at(hour: int) -> datetime:
+    return datetime(2026, 9, 29, hour, 0, tzinfo=UTC).astimezone()
+
+
+def test_greeting_says_bonjour_in_the_morning():
+    title, _ = build_greeting(_at(9), name="Romain", random_source=random.Random(0))
+    assert title == "Bonjour, Romain"
+
+
+def test_greeting_says_bon_apres_midi_in_the_afternoon():
+    title, _ = build_greeting(_at(14), name="Romain", random_source=random.Random(0))
+    assert title == "Bon après-midi, Romain"
+
+
+def test_greeting_says_bonsoir_in_the_evening():
+    title, _ = build_greeting(_at(20), name="Romain", random_source=random.Random(0))
+    assert title == "Bonsoir, Romain"
+
+
+def test_greeting_says_bonne_nuit_at_night():
+    title, _ = build_greeting(_at(2), name="Romain", random_source=random.Random(0))
+    assert title == "Bonne nuit, Romain"
+
+
+def test_greeting_omits_name_when_unknown():
+    """Sans nom exploitable, on ne veut pas d'un « Bonjour, » à la virgule
+    orpheline. Le titre reste juste la salutation."""
+    title, _ = build_greeting(_at(9), name="", random_source=random.Random(0))
+    assert title == "Bonjour"
+
+
+def test_greeting_subtitle_varies_across_calls():
+    """Le sous-titre pioche dans plusieurs variantes ; deux Random distinctes
+    doivent au moins pouvoir tomber sur des textes différents."""
+    _, sub_a = build_greeting(_at(9), name="A", random_source=random.Random(0))
+    _, sub_b = build_greeting(_at(9), name="A", random_source=random.Random(2))
+    # Les deux appartiennent à la liste matin.
+    from app.ui.pages.dashboard_page import _SUBTITLES
+    assert sub_a in _SUBTITLES["morning"]
+    assert sub_b in _SUBTITLES["morning"]
