@@ -240,3 +240,34 @@ def test_default_settings_enable_auto_ytdlp_update():
     from app.models.application_settings import ApplicationSettings
 
     assert ApplicationSettings().auto_update_ytdlp is True
+
+
+def test_txt_playlist_file_expands_to_its_contained_urls(tmp_path):
+    """Un .txt de liens doit être expansé, pas traité comme une URL à télécharger."""
+    from app.ui.main_window import _read_url_list_from_txt
+
+    playlist = tmp_path / "liens.txt"
+    playlist.write_text(
+        "\n".join([
+            "https://example.com/a",
+            "  ",  # ligne vide après strip
+            "# commentaire à ignorer",
+            "https://example.com/b",
+            "",
+            "https://example.com/c",
+        ]),
+        encoding="utf-8",
+    )
+
+    assert _read_url_list_from_txt(playlist) == [
+        "https://example.com/a",
+        "https://example.com/b",
+        "https://example.com/c",
+    ]
+
+
+def test_txt_playlist_missing_file_returns_empty(tmp_path):
+    """Un chemin qui n'existe plus ne doit pas faire crasher le drop."""
+    from app.ui.main_window import _read_url_list_from_txt
+
+    assert _read_url_list_from_txt(tmp_path / "manquant.txt") == []

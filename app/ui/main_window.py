@@ -40,6 +40,27 @@ from app.utils.paths import app_icon_path, logo_path
 from app.version import __version__
 
 
+def _read_url_list_from_txt(path: Path) -> list[str]:
+    """Return one URL per non-empty, non-comment line in a .txt playlist file.
+
+    A line is dropped if it is blank after stripping, or starts with `#` — the
+    convention lets people annotate their link lists without breaking imports.
+    UTF-8 with `errors=replace` so a mis-encoded file at least yields something
+    the user can see and correct rather than silently failing.
+    """
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    urls: list[str] = []
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        urls.append(line)
+    return urls
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -429,8 +450,20 @@ class MainWindow(QMainWindow):
 
     def dropEvent(self, event) -> None:
         data = event.mimeData()
-        candidates = [url.toString() for url in data.urls()] if data.hasUrls() else data.text().splitlines()
-        urls = [candidate.strip() for candidate in candidates if candidate.strip()]
+        if data.hasUrls():
+            urls: list[str] = []
+            for candidate in data.urls():
+                local = candidate.toLocalFile()
+                # Un fichier .txt lâché sur la fenêtre est traité comme une
+                # « liste de liens » : on lit son contenu, une URL par ligne,
+                # et on ignore les lignes vides ainsi que les commentaires (#).
+                if local and Path(local).is_file() and Path(local).suffix.lower() == ".txt":
+                    urls.extend(_read_url_list_from_txt(Path(local)))
+                else:
+                    urls.append(candidate.toString().strip())
+        else:
+            urls = [line.strip() for line in data.text().splitlines()]
+        urls = [url for url in urls if url]
         if not urls:
             return
         self._go_to(0)
