@@ -20,12 +20,13 @@ def test_settings_roundtrip_keeps_new_fields():
 
 
 def test_settings_from_legacy_dict_uses_defaults():
-    # An old settings file without the new keys must still load.
+    # An old settings file without the new keys must still load, and pick up
+    # the current defaults for anything it doesn't spell out.
     legacy = {"theme": "dark", "parallel_downloads": 3}
     restored = ApplicationSettings.from_dict(legacy)
     assert restored.parallel_downloads == 3
     assert restored.last_mode == "video"
-    assert restored.auto_update_ytdlp is False
+    assert restored.auto_update_ytdlp is True
 
 
 @pytest.fixture

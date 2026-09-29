@@ -10,7 +10,12 @@ dependencies = ["PySide6>=6.8,<7"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# -v : chaque nom de test est écrit avant de démarrer, indispensable pour
+#      voir dans les logs CI lequel bloque quand un run part en hang.
+# --timeout=30 : garde-fou contre un test Qt qui n'arrive pas à sortir de
+#      son event loop (déjà vécu avec pytest-qt sur runner Windows).
+# --timeout-method=thread : SIGALRM n'existe pas sous Windows.
+addopts = "-v --timeout=30 --timeout-method=thread --durations=10"
 
 [tool.ruff]
 target-version = "py312"
