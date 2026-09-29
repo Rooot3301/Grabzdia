@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import random
 from datetime import UTC, datetime, timedelta
@@ -499,13 +500,11 @@ class DashboardPage(QWidget):
         if not loaded or pixmap.isNull():
             return
         self._thumb_cache[url] = pixmap
-        try:
-            # Si la liste a été rebâtie entre le GET et la réponse, le
-            # QLabel a été deleteLater() par Qt et l'accès à sightRule
-            # lève RuntimeError — c'est OK, on abandonne.
+        # Si la liste a été rebâtie entre le GET et la réponse, le QLabel
+        # a été deleteLater() par Qt et l'accès à ses méthodes lève
+        # RuntimeError — c'est OK, on abandonne.
+        with contextlib.suppress(RuntimeError):
             self._apply_thumbnail_pixmap(thumb, pixmap)
-        except RuntimeError:
-            pass
 
     @staticmethod
     def _apply_thumbnail_pixmap(thumb: QLabel, pixmap: QPixmap) -> None:
