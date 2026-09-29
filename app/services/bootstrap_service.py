@@ -6,6 +6,7 @@ yt-dlp can be refreshed independently of the application.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 import urllib.request
 import zipfile
@@ -14,6 +15,7 @@ from pathlib import Path
 
 # Official sources.
 YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+YTDLP_LATEST_API = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
 # gyan.dev builds are the canonical Windows FFmpeg distribution linked from
 # ffmpeg.org; the "essentials" archive bundles ffmpeg.exe and ffprobe.exe.
 FFMPEG_ZIP_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
@@ -93,6 +95,45 @@ def verify_executable(path: Path) -> bool:
         return completed.returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
+
+
+def read_ytdlp_version(path: Path) -> str:
+    """Return the version string reported by `yt-dlp --version` (e.g. '2024.11.04'), or ''.
+
+    Used to skip re-downloading yt-dlp when the local build is already the
+    latest release.
+    """
+    try:
+        completed = subprocess.run(
+            [str(path), "--version"],
+            capture_output=True,
+            timeout=10,
+            creationflags=_NO_WINDOW,
+        )
+        if completed.returncode == 0:
+            return completed.stdout.decode("utf-8", "replace").strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return ""
+
+
+def latest_ytdlp_version() -> str:
+    """Return the `tag_name` of yt-dlp's latest GitHub release, or '' on failure.
+
+    Failures are silent by design: this is a "should I download?" probe, and
+    when it can't answer we must not block the app — the caller falls back to
+    the existing binary. Runs off the UI thread inside BootstrapWorker.
+    """
+    try:
+        request = urllib.request.Request(
+            YTDLP_LATEST_API,
+            headers={"User-Agent": "Grabzdia", "Accept": "application/vnd.github+json"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 (fixed https host)
+            data = json.load(response)
+        return str(data.get("tag_name", "")).strip()
+    except Exception:  # noqa: BLE001 (any failure ⇒ skip the update, never crash startup)
+        return ""
 
 
 def download_file(url: str, target: Path, on_progress=None) -> None:

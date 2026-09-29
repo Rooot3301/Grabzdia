@@ -340,7 +340,10 @@ class MainWindow(QMainWindow):
 
     def _maybe_auto_update(self) -> None:
         if self.settings.auto_update_ytdlp and "yt-dlp" not in self.binaries.missing():
-            self._update_ytdlp()
+            # Silent at startup: an offline machine (or GitHub 5xx) must NOT
+            # greet the user with a modal warning on every launch. Manual
+            # clicks in the Settings page keep the modal.
+            self._update_ytdlp(silent=True)
 
     def _check_updates(self, silent: bool) -> None:
         self._update_silent = silent
@@ -369,7 +372,8 @@ class MainWindow(QMainWindow):
         elif not silent:
             self.settings_page.set_update_status(f"Grabzdia est à jour (version {__version__}).")
 
-    def _update_ytdlp(self) -> None:
+    def _update_ytdlp(self, silent: bool = False) -> None:
+        self._ytdlp_update_silent = silent
         self.settings_page.set_update_enabled(False)
         worker = BootstrapWorker([COMPONENTS["yt-dlp"]])
         # Bound methods so GUI updates run on the GUI thread (queued connection).
@@ -382,13 +386,15 @@ class MainWindow(QMainWindow):
         self.settings_page.set_component_status(f"Téléchargement de yt-dlp… {percent} %")
 
     def _ytdlp_updated(self, success: bool, message: str) -> None:
+        silent = getattr(self, "_ytdlp_update_silent", False)
         self.settings_page.set_update_enabled(True)
         if success:
             self._refresh_binary_status()
             self.statusBar().showMessage("yt-dlp mis à jour.", 4000)
         else:
             self.settings_page.set_component_status(message)
-            self._error(message)
+            if not silent:
+                self._error(message)
 
     def _show_about(self) -> None:
         from app.ui.about_dialog import AboutDialog

@@ -79,6 +79,7 @@ def test_redownload_from_history_builds_job(qtbot, monkeypatch):
     from app.ui.main_window import MainWindow
 
     monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
+    monkeypatch.setattr(MainWindow, "_update_ytdlp", lambda self, *args, **kwargs: None, raising=False)
     win = MainWindow()
     qtbot.addWidget(win)
     # Do not launch a real yt-dlp process: verify the job is built and enqueued.

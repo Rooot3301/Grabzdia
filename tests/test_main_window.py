@@ -14,6 +14,9 @@ def window(qtbot, monkeypatch):
 
     # Never hit the network for the startup update check during tests.
     monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
+    # auto_update_ytdlp est vrai par défaut : sans mock, chaque construction
+    # lance BootstrapWorker qui interroge GitHub et télécharge yt-dlp.exe.
+    monkeypatch.setattr(MainWindow, "_update_ytdlp", lambda self, *args, **kwargs: None, raising=False)
     win = MainWindow()
     qtbot.addWidget(win)
     return win
@@ -192,3 +195,45 @@ def test_logged_ytdlp_output_redacts_url_secrets(window, caplog):
 
     assert "deadbeef" not in caplog.text
     assert "[REDACTED]" in caplog.text
+
+
+def test_maybe_auto_update_asks_for_silent_ytdlp_update(window, monkeypatch):
+    """L'auto-update au démarrage passe silent=True (pas de modale si offline)."""
+    calls: list[dict] = []
+    monkeypatch.setattr(window, "_update_ytdlp", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(window.binaries, "missing", lambda: [])
+    window.settings.auto_update_ytdlp = True
+
+    window._maybe_auto_update()
+
+    assert calls == [{"silent": True}]
+
+
+def test_silent_ytdlp_failure_does_not_show_a_modal(window, monkeypatch):
+    """Une màj échouée au démarrage ne doit pas ouvrir de QMessageBox — juste écrire dans les paramètres."""
+    errors: list[str] = []
+    monkeypatch.setattr(window, "_error", errors.append)
+    window._ytdlp_update_silent = True
+
+    window._ytdlp_updated(False, "Échec réseau : vérifiez votre connexion Internet, puis réessayez.")
+
+    assert errors == []
+
+
+def test_manual_ytdlp_failure_still_shows_a_modal(window, monkeypatch):
+    """Le clic manuel « Mettre à jour yt-dlp » doit toujours signaler l'échec."""
+    errors: list[str] = []
+    monkeypatch.setattr(window, "_error", errors.append)
+    window._ytdlp_update_silent = False
+
+    window._ytdlp_updated(False, "Échec du téléchargement : ...")
+
+    assert errors == ["Échec du téléchargement : ..."]
+
+
+def test_default_settings_enable_auto_ytdlp_update():
+    """Par défaut yt-dlp doit se mettre à jour tout seul, sinon l'utilisateur reste
+    coincé sur une version cassée par YouTube tant qu'il n'ouvre pas les paramètres."""
+    from app.models.application_settings import ApplicationSettings
+
+    assert ApplicationSettings().auto_update_ytdlp is True

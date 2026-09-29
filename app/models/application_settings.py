@@ -17,7 +17,7 @@ class ApplicationSettings:
     use_download_archive: bool = False
     notifications: bool = True
     filename_template: str = "%(title)s [%(id)s].%(ext)s"
-    auto_update_ytdlp: bool = False
+    auto_update_ytdlp: bool = True
     auto_check_updates: bool = True
     update_channel: str = "live"
     sponsorblock_remove: bool = False
