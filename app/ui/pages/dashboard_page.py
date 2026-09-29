@@ -25,7 +25,6 @@ from app.services.history_service import HistoryService
 from app.ui.widgets import MODE_LABELS, STATUS_LABELS, CircleGauge, eyebrow_label, format_timestamp, load_icon
 from app.utils.url_host import source_label
 
-
 # ---------- Salutation dynamique (dépendance : heure + username) --------------
 
 def _time_slot(now: datetime) -> str:
