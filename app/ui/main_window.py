@@ -282,6 +282,7 @@ class MainWindow(QMainWindow):
             embed_thumbnail=bool(entry.get("embed_thumbnail", True)),
             playlist=bool(entry.get("playlist", False)),
             use_archive=bool(entry.get("use_archive", False)),
+            thumbnail_url=str(entry.get("thumbnail_url", "")),
         )
         self.manager.enqueue(job, True)
         self._persist_queue()

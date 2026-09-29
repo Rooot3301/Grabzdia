@@ -48,6 +48,11 @@ class DownloadJob:
     error_hint: str = ""
     error_output: str = ""
     sponsorblock: bool = False
+    # URL de la miniature récupérée à l'analyse ; conservée dans l'historique
+    # pour que la page Accueil puisse afficher un aperçu sans re-fetcher
+    # les métadonnées du média (ce qui peut échouer si la vidéo a été
+    # supprimée entre-temps).
+    thumbnail_url: str = ""
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)

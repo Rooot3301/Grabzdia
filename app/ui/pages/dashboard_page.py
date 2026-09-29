@@ -5,8 +5,9 @@ import random
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QRectF, QSize, Qt, QUrl, Signal
+from PySide6.QtGui import QAction, QPainter, QPainterPath, QPixmap
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -211,6 +212,13 @@ class DashboardPage(QWidget):
         super().__init__(parent)
         self.history = history
         self.settings = settings
+        # Cache local des miniatures téléchargées pendant la session.
+        # Une entrée = un pixmap prêt à peindre, indexé par URL. On ne
+        # persiste pas sur disque : les 5 miniatures visibles pèsent peu
+        # et sont re-fetchées au lancement suivant (miniatures YouTube
+        # servies par ytimg.com, très rapides).
+        self._thumb_cache: dict[str, QPixmap] = {}
+        self._thumb_manager = QNetworkAccessManager(self)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(32, 28, 32, 28)
@@ -422,9 +430,13 @@ class DashboardPage(QWidget):
 
         thumb = QLabel()
         thumb.setObjectName("recentThumb")
-        thumb.setFixedSize(60, 40)
+        thumb.setFixedSize(72, 48)
         thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thumb.setPixmap(load_icon("film.svg").pixmap(22, 22))
+        thumb.setScaledContents(False)
+        # État par défaut : placeholder film (icône), servira si la vidéo
+        # n'a pas d'URL de miniature ou si le fetch réseau échoue.
+        thumb.setPixmap(load_icon("film.svg").pixmap(24, 24))
+        self._start_thumbnail_fetch(thumb, str(entry.get("thumbnail_url", "")))
         layout.addWidget(thumb)
 
         text_col = QVBoxLayout()
@@ -458,6 +470,66 @@ class DashboardPage(QWidget):
         kebab.setMenu(self._kebab_menu(entry, kebab))
         layout.addWidget(kebab)
         return row
+
+    # ---- thumbnail fetch -----------------------------------------------
+    def _start_thumbnail_fetch(self, thumb: QLabel, url: str) -> None:
+        """Tente le fetch d'une miniature ; laisse le placeholder si l'URL
+        est vide ou d'un schéma non-http(s).
+
+        Cache hit → paint immédiat, aucune requête réseau. Cache miss → GET
+        asynchrone, le pixmap est appliqué à la fin. Le widget peut avoir
+        été détruit entre-temps (refresh() de la liste), auquel cas on
+        ignore silencieusement."""
+        clean = url.strip()
+        if not clean:
+            return
+        if clean in self._thumb_cache:
+            self._apply_thumbnail_pixmap(thumb, self._thumb_cache[clean])
+            return
+        parsed = QUrl(clean)
+        if parsed.scheme().lower() not in ("http", "https"):
+            return
+        reply = self._thumb_manager.get(QNetworkRequest(parsed))
+        reply.finished.connect(lambda r=reply, t=thumb, u=clean: self._on_thumbnail_ready(r, t, u))
+
+    def _on_thumbnail_ready(self, reply: QNetworkReply, thumb: QLabel, url: str) -> None:
+        pixmap = QPixmap()
+        loaded = pixmap.loadFromData(reply.readAll())
+        reply.deleteLater()
+        if not loaded or pixmap.isNull():
+            return
+        self._thumb_cache[url] = pixmap
+        try:
+            # Si la liste a été rebâtie entre le GET et la réponse, le
+            # QLabel a été deleteLater() par Qt et l'accès à sightRule
+            # lève RuntimeError — c'est OK, on abandonne.
+            self._apply_thumbnail_pixmap(thumb, pixmap)
+        except RuntimeError:
+            pass
+
+    @staticmethod
+    def _apply_thumbnail_pixmap(thumb: QLabel, pixmap: QPixmap) -> None:
+        """Peint la miniature en couvrant le cadre 72×48, coins arrondis
+        clippés à la main (QSS border-radius sur QLabel ne masque pas
+        le pixmap sous Qt6)."""
+        target = QPixmap(72, 48)
+        target.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(target)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, 72, 48), 6, 6)
+        painter.setClipPath(path)
+        scaled = pixmap.scaled(
+            72, 48,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        # Centrage : si l'image est plus large que 72 après scale, on décale.
+        x = (72 - scaled.width()) // 2
+        y = (48 - scaled.height()) // 2
+        painter.drawPixmap(x, y, scaled)
+        painter.end()
+        thumb.setPixmap(target)
 
     @staticmethod
     def _recent_meta(entry: dict[str, Any]) -> str:

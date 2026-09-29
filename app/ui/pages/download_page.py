@@ -332,6 +332,10 @@ class DownloadPage(QWidget):
     def _build_job(self, url: str, title: str, destination: str) -> DownloadJob:
         audio = self._is_audio()
         quality = self.quality.currentText().replace("Automatique", "auto").replace("Meilleure qualité", "best")
+        # Miniature récupérée à l'analyse (present sur self.media pour les
+        # jobs individuels ; vide pour les lots où on n'analyse pas les
+        # entrées une à une pour rester rapide).
+        thumbnail = self.media.thumbnail_url if self.media and self.media.original_url == url else ""
         return DownloadJob(
             url=url,
             title=title,
@@ -348,6 +352,7 @@ class DownloadPage(QWidget):
             playlist=self.playlist.isChecked(),
             use_archive=self.settings.use_download_archive,
             sponsorblock=self.settings.sponsorblock_remove,
+            thumbnail_url=thumbnail,
         )
 
     def _enqueue(self, start: bool) -> None:

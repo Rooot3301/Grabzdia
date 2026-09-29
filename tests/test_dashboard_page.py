@@ -163,6 +163,45 @@ def test_kebab_copy_url_uses_clipboard_and_reports_in_statusbar(window):
     assert QApplication.clipboard().text() == "https://example.com/x"
 
 
+def test_download_job_carries_thumbnail_url_through_roundtrip():
+    """thumbnail_url doit survivre au to_dict/from_dict pour arriver dans
+    l'historique persisté et être relu au prochain lancement."""
+    from app.models.download_job import DownloadJob
+
+    job = DownloadJob(
+        url="https://example.com/v", title="t", mode="video", quality="1080p",
+        output_format="mp4", destination=".", filename_template="%(title)s.%(ext)s",
+        thumbnail_url="https://cdn.example.com/thumb.jpg",
+    )
+    restored = DownloadJob.from_dict(job.to_dict())
+    assert restored.thumbnail_url == "https://cdn.example.com/thumb.jpg"
+
+
+def test_download_job_from_legacy_dict_defaults_thumbnail_url_to_empty():
+    """Une entrée d'historique écrite avant l'ajout du champ doit rester
+    lisible sans planter."""
+    from app.models.download_job import DownloadJob
+
+    legacy = {
+        "url": "u", "title": "t", "mode": "video", "quality": "auto",
+        "output_format": "mp4", "destination": ".", "filename_template": "x",
+        "status": "completed",
+    }
+    assert DownloadJob.from_dict(legacy).thumbnail_url == ""
+
+
+def test_dashboard_thumbnail_fetch_skips_non_http_schemes(window):
+    """Un file:// ou data:URI ne doit pas déclencher de requête réseau."""
+    from PySide6.QtWidgets import QLabel
+
+    dashboard = window.dashboard_page
+    label = QLabel()
+    dashboard._start_thumbnail_fetch(label, "file:///etc/passwd")
+    dashboard._start_thumbnail_fetch(label, "data:image/png;base64,AAA")
+    dashboard._start_thumbnail_fetch(label, "")
+    assert dashboard._thumb_cache == {}
+
+
 def test_kebab_delete_removes_from_history(window, tmp_path, monkeypatch):
     """Suppression d'une entrée via le kebab : l'historique perd la ligne
     et le dashboard se re-render (le compteur Total baisse)."""
