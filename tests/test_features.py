@@ -416,7 +416,12 @@ def test_manager_forwards_ytdlp_output_lines(monkeypatch):
     from app.services.download_service import DownloadManager, DownloadRunner
 
     monkeypatch.setattr(DownloadRunner, "start", lambda self: None)
-    manager = DownloadManager(binaries=None)
+    # maximum=1 : sans ça, start_available reboucle à l'infini. En prod, le vrai
+    # start() fait passer le job en RUNNING ; avec le mock ci-dessus, le job
+    # reste QUEUED et la boucle recrée un DownloadRunner à chaque tour, parenté
+    # au manager (donc jamais collecté) — le processus grossit jusqu'à saturer
+    # la RAM du runner. Vécu : reboot forcé sur la machine du dev.
+    manager = DownloadManager(binaries=None, maximum=1)
     received: list[str] = []
     manager.job_output.connect(received.append)
 
