@@ -9,20 +9,6 @@ pytest.importorskip("pytestqt")
 
 
 @pytest.fixture
-def window(qtbot, monkeypatch):
-    from app.ui.main_window import MainWindow
-
-    # Never hit the network for the startup update check during tests.
-    monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
-    # auto_update_ytdlp est vrai par défaut : sans mock, chaque construction
-    # lance BootstrapWorker qui interroge GitHub et télécharge yt-dlp.exe.
-    monkeypatch.setattr(MainWindow, "_update_ytdlp", lambda self, *args, **kwargs: None, raising=False)
-    win = MainWindow()
-    qtbot.addWidget(win)
-    return win
-
-
-@pytest.fixture
 def page(qtbot):
     """A standalone DownloadPage (its error signal is not wired to a dialog)."""
     from app.ui.pages import DownloadPage
@@ -42,8 +28,9 @@ def settings_page(qtbot):
     return widget
 
 
-def test_window_has_three_pages(window):
-    assert window.stack.count() == 3
+def test_window_has_four_pages(window):
+    # Accueil (0), Télécharger (1), Historique (2), Paramètres (3)
+    assert window.stack.count() == 4
 
 
 def test_navigation_updates_stack(window):

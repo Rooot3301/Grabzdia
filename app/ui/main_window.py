@@ -30,7 +30,7 @@ from app.services.settings_service import SettingsService
 from app.services.taskbar_service import TaskbarProgress, average_progress
 from app.services.update_service import UpdateCheckWorker, choose_update
 from app.ui.error_dialog import ErrorDialog
-from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
+from app.ui.pages import DashboardPage, DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
 from app.ui.theme import apply_theme
 from app.ui.update_dialog import UpdateDialog
@@ -104,10 +104,11 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar()
         self.stack = QStackedWidget()
 
+        self.dashboard_page = DashboardPage(self.history_service)
         self.download_page = DownloadPage(self.settings)
         self.history_page = HistoryPage(self.history_service)
         self.settings_page = SettingsPage(self.settings)
-        for page in (self.download_page, self.history_page, self.settings_page):
+        for page in (self.dashboard_page, self.download_page, self.history_page, self.settings_page):
             self.stack.addWidget(page)
 
         layout.addWidget(self.sidebar)
@@ -117,6 +118,13 @@ class MainWindow(QMainWindow):
 
     def _connect(self) -> None:
         self.sidebar.navigated.connect(self.stack.setCurrentIndex)
+        # Refresh the dashboard KPI right when the user lands on it, so it
+        # never shows a stale count they collected before opening a page.
+        self.sidebar.navigated.connect(self._on_navigated)
+
+        self.dashboard_page.navigate_download.connect(lambda: self._go_to(1))
+        self.dashboard_page.navigate_history.connect(lambda: self._go_to(2))
+        self.dashboard_page.navigate_settings.connect(lambda: self._go_to(3))
 
         self.download_page.analyze_requested.connect(self.metadata.analyze)
         self.download_page.job_ready.connect(self._on_job_ready)
@@ -155,7 +163,8 @@ class MainWindow(QMainWindow):
 
     def _shortcuts(self) -> None:
         shortcuts = {
-            "Ctrl+,": lambda: self._go_to(2),
+            # 3 = Paramètres, décalé de 1 depuis l'ajout de la page Accueil.
+            "Ctrl+,": lambda: self._go_to(3),
             "Ctrl+O": self.download_page.browse_button.animateClick,
             "Ctrl+Return": self.download_page.download_button.animateClick,
             "Ctrl+L": self.download_page.toggle_logs,
@@ -169,6 +178,13 @@ class MainWindow(QMainWindow):
     def _go_to(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
         self.sidebar.set_current(index)
+        self._on_navigated(index)
+
+    def _on_navigated(self, index: int) -> None:
+        # Only the dashboard needs re-computing on nav — other pages hold
+        # widgets that are already live-updated by their own signals.
+        if index == 0:
+            self.dashboard_page.refresh()
 
     # ---- metadata / thumbnail ---------------------------------------------
     def _metadata_ready(self, media: MediaInfo) -> None:
@@ -236,7 +252,7 @@ class MainWindow(QMainWindow):
         )
         self.manager.enqueue(job, True)
         self._persist_queue()
-        self._go_to(0)
+        self._go_to(1)
         self._update_stats()
 
     def _log_output(self, line: str) -> None:
@@ -256,6 +272,10 @@ class MainWindow(QMainWindow):
     def _job_finished(self, job: DownloadJob) -> None:
         self.history_service.add(job.to_dict(), self.settings.history_limit)
         self.history_page.refresh()
+        # KPI (aujourd'hui, taux de succès, dernières entrées) reflètent
+        # l'historique — sans ce refresh ils resteraient figés jusqu'à la
+        # prochaine ouverture manuelle de la page Accueil.
+        self.dashboard_page.refresh()
         self._persist_queue()
         self.statusBar().showMessage(f"{job.title} : {job.status.value}", 8000)
         if job.status == DownloadStatus.COMPLETED:
@@ -466,7 +486,7 @@ class MainWindow(QMainWindow):
         urls = [url for url in urls if url]
         if not urls:
             return
-        self._go_to(0)
+        self._go_to(1)
         if len(urls) == 1:
             self.download_page.load_url(urls[0])
         else:

@@ -95,7 +95,8 @@ def test_redownload_from_history_builds_job(qtbot, monkeypatch):
     }
     win._redownload(entry)
     assert any(job.url == "https://example.com/watch?v=abc" for job in win.manager.jobs)
-    assert win.stack.currentIndex() == 0
+    # 1 = page Télécharger (0 est devenu Accueil).
+    assert win.stack.currentIndex() == 1
 
 
 def test_history_search_filters(qtbot, tmp_path, monkeypatch):

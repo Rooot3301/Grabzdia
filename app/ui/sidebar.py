@@ -53,6 +53,7 @@ class Sidebar(QWidget):
         self._group.setExclusive(True)
         self._buttons: list[QPushButton] = []
         entries = [
+            ("Accueil", "home.svg"),
             ("Télécharger", "download.svg"),
             ("Historique", "history.svg"),
             ("Paramètres", "settings.svg"),

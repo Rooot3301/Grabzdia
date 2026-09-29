@@ -1,6 +1,8 @@
 import os
 import tempfile
 
+import pytest
+
 # Qt must run headless during tests. Set before any Qt import.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -20,3 +22,19 @@ os.environ["LOCALAPPDATA"] = _sandbox
 from PySide6.QtWidgets import QSystemTrayIcon  # noqa: E402
 
 QSystemTrayIcon.isSystemTrayAvailable = staticmethod(lambda: False)
+
+
+@pytest.fixture
+def window(qtbot, monkeypatch):
+    """Shared MainWindow fixture — moved out of test_main_window so it's usable
+    from any test file (test_dashboard_page.py depends on it)."""
+    from app.ui.main_window import MainWindow
+
+    # Never hit the network for the startup update check during tests.
+    monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
+    # auto_update_ytdlp est vrai par défaut : sans mock, chaque construction
+    # lance BootstrapWorker qui interroge GitHub et télécharge yt-dlp.exe.
+    monkeypatch.setattr(MainWindow, "_update_ytdlp", lambda self, *args, **kwargs: None, raising=False)
+    win = MainWindow()
+    qtbot.addWidget(win)
+    return win

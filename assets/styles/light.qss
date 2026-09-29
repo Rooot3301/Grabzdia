@@ -59,6 +59,19 @@ QFrame#heroCard {
     border: 1px solid #DBE2EE;
     border-radius: 14px;
 }
+QFrame#statCard {
+    background: #FBFCFE;
+    border: 1px solid #E1E6EF;
+    border-radius: 12px;
+    min-height: 90px;
+}
+QLabel#statValue { font-size: 20pt; font-weight: 800; color: #10151F; }
+QFrame#recentRow {
+    background: #F5F7FB;
+    border: 1px solid #E1E6EF;
+    border-radius: 8px;
+}
+QLabel#recentTitle { font-size: 10pt; font-weight: 600; color: #2A3444; }
 
 /* ---------------- Pastilles ---------------- */
 QLabel#statusPill {
