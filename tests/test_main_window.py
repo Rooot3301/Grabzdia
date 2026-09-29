@@ -151,7 +151,7 @@ def test_apply_theme_sets_the_link_palette_colour(qtbot, restore_app_theme):
     from app.ui.theme import LINK_COLORS, apply_theme
 
     app = restore_app_theme
-    for theme in ("dark", "light"):
+    for theme in ("dark", "light", "midnight", "sunset", "forest"):
         resolved = apply_theme(app, theme)
         assert app.palette().color(QPalette.ColorRole.Link) == QColor(LINK_COLORS[resolved])
 
