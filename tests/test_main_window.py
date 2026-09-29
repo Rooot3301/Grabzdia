@@ -164,3 +164,31 @@ def test_apply_theme_sets_the_link_palette_colour(qtbot, restore_app_theme):
     for theme in ("dark", "light"):
         resolved = apply_theme(app, theme)
         assert app.palette().color(QPalette.ColorRole.Link) == QColor(LINK_COLORS[resolved])
+
+
+def test_ytdlp_output_reaches_the_log_panel(window):
+    """Le panneau Ctrl+L doit montrer la sortie de yt-dlp, pas rester vide."""
+    window.manager.job_output.emit("[download] Destination: piste.mp3")
+
+    assert "[download] Destination: piste.mp3" in window.download_page.logs.toPlainText()
+
+
+def test_ytdlp_output_is_written_to_the_session_log(window, caplog):
+    """Sans cette ligne dans le fichier, « Signaler un problème » n'emporte rien."""
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        window.manager.job_output.emit("ERROR: Video unavailable")
+
+    assert "ERROR: Video unavailable" in caplog.text
+
+
+def test_logged_ytdlp_output_redacts_url_secrets(window, caplog):
+    """Le rapport part sur un ticket public : les URL signées doivent être masquées."""
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        window.manager.job_output.emit("[download] https://r1.googlevideo.com/videoplayback?expire=1&signature=deadbeef")
+
+    assert "deadbeef" not in caplog.text
+    assert "[REDACTED]" in caplog.text

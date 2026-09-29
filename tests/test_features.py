@@ -407,3 +407,19 @@ def test_built_job_copies_the_sponsorblock_setting(page):
     page.settings.sponsorblock_remove = True
     job = page._build_job("https://example.com/v", "Titre", ".")
     assert job.sponsorblock is True
+
+
+def test_manager_forwards_ytdlp_output_lines(monkeypatch):
+    """Chaque ligne de yt-dlp doit ressortir du manager, sinon rien ne peut la journaliser."""
+    from app.services.download_service import DownloadManager, DownloadRunner
+
+    monkeypatch.setattr(DownloadRunner, "start", lambda self: None)
+    manager = DownloadManager(binaries=None)
+    received: list[str] = []
+    manager.job_output.connect(received.append)
+
+    job = _job()
+    manager.enqueue(job)
+    manager.runners[job.id].output.emit("ERROR: Video unavailable")
+
+    assert received == ["ERROR: Video unavailable"]

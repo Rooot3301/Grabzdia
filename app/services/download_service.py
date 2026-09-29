@@ -150,6 +150,9 @@ class DownloadRunner(QObject):
 class DownloadManager(QObject):
     job_updated = Signal(object)
     job_finished = Signal(object)
+    # Chaque ligne non-progression de yt-dlp, relayée telle quelle : c'est la
+    # seule trace de ce qui s'est réellement passé quand un téléchargement échoue.
+    job_output = Signal(str)
 
     def __init__(self, binaries: BinaryService, maximum: int = 2, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -174,6 +177,7 @@ class DownloadManager(QObject):
             runner.progress.connect(self._progress)
             runner.finished.connect(self._complete)
             runner.failed.connect(self._failed)
+            runner.output.connect(self.job_output)
             runner.start()
             self.job_updated.emit(job)
 

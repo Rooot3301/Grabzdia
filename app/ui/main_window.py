@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
@@ -34,6 +35,7 @@ from app.ui.sidebar import Sidebar
 from app.ui.theme import apply_theme
 from app.ui.update_dialog import UpdateDialog
 from app.utils.filename import validate_output_template
+from app.utils.logging_utils import redact_secrets
 from app.utils.paths import app_icon_path, logo_path
 from app.version import __version__
 
@@ -113,6 +115,7 @@ class MainWindow(QMainWindow):
 
         self.manager.job_updated.connect(self._job_updated)
         self.manager.job_finished.connect(self._job_finished)
+        self.manager.job_output.connect(self._log_output)
 
         self.settings_page.saved.connect(self._settings_saved)
         self.settings_page.update_ytdlp_requested.connect(self._update_ytdlp)
@@ -214,6 +217,16 @@ class MainWindow(QMainWindow):
         self._persist_queue()
         self._go_to(0)
         self._update_stats()
+
+    def _log_output(self, line: str) -> None:
+        """Consigner une ligne de yt-dlp, secrets masqués.
+
+        Le fichier de session est ce que « Signaler un problème » joint à un
+        ticket public : les URL signées y passent donc par redact_secrets.
+        """
+        clean = redact_secrets(line)
+        logging.info("yt-dlp: %s", clean)
+        self.download_page.write_log(clean)
 
     def _job_updated(self, job: DownloadJob) -> None:
         self.download_page.update_job(job)
