@@ -26,7 +26,7 @@ from app.models.application_settings import ApplicationSettings
 from app.models.download_job import DownloadStatus
 from app.services.history_service import HistoryService
 from app.ui.widgets import MODE_LABELS, STATUS_LABELS, CircleGauge, eyebrow_label, format_timestamp, load_icon
-from app.utils.url_host import source_label
+from app.utils.url_host import infer_thumbnail_url, source_label
 
 # ---------- Salutation dynamique (dépendance : heure + username) --------------
 
@@ -396,10 +396,21 @@ class DashboardPage(QWidget):
 
     # ---- refresh -------------------------------------------------------
     def refresh(self) -> None:
-        # Nom paramétré > détection env. Vide → build_greeting retombe sur
-        # l'env via son argument name=None ; toute chaîne non-vide gagne.
-        chosen = self.settings.display_name.strip() or None
-        title, subtitle = build_greeting(name=chosen)
+        # Priorité :
+        # 1. display_name renseigné → on l'utilise.
+        # 2. Onboarding déjà passé (l'utilisateur a vu la modale et a sciemment
+        #    laissé le champ vide, ou cliqué « Plus tard ») → PAS de nom du
+        #    tout, on ne veut pas ré-injecter l'USERNAME du PC.
+        # 3. Onboarding pas encore fait → fallback détection env (accueil
+        #    déjà personnalisé au tout premier lancement, avant l'écran).
+        stored = self.settings.display_name.strip()
+        if stored:
+            name = stored
+        elif self.settings.onboarding_completed:
+            name = ""  # explicit skip → aucune personnalisation
+        else:
+            name = None  # pre-onboarding → build_greeting va sonder l'env
+        title, subtitle = build_greeting(name=name)
         self._greeting_title.setText(f"{title}  👋" if title else "")
         self._greeting_subtitle.setText(subtitle)
 
@@ -437,7 +448,14 @@ class DashboardPage(QWidget):
         # État par défaut : placeholder film (icône), servira si la vidéo
         # n'a pas d'URL de miniature ou si le fetch réseau échoue.
         thumb.setPixmap(load_icon("film.svg").pixmap(24, 24))
-        self._start_thumbnail_fetch(thumb, str(entry.get("thumbnail_url", "")))
+        # 1) URL stockée (jobs analysés à partir de v1.2.0-evo.5).
+        # 2) Sinon, tentative de reconstruction depuis l'URL de la vidéo
+        #    (YouTube : i.ytimg.com/vi/<id>/hqdefault.jpg). Ça couvre les
+        #    vieilles entrées d'historique sans ré-appeler yt-dlp.
+        thumbnail = str(entry.get("thumbnail_url", "")).strip()
+        if not thumbnail:
+            thumbnail = infer_thumbnail_url(str(entry.get("url", "")))
+        self._start_thumbnail_fetch(thumb, thumbnail)
         layout.addWidget(thumb)
 
         text_col = QVBoxLayout()
@@ -500,9 +518,10 @@ class DashboardPage(QWidget):
         if not loaded or pixmap.isNull():
             return
         self._thumb_cache[url] = pixmap
-        # Si la liste a été rebâtie entre le GET et la réponse, le QLabel
-        # a été deleteLater() par Qt et l'accès à ses méthodes lève
-        # RuntimeError — c'est OK, on abandonne.
+        # Si la liste a été rebâtie entre le GET et la réponse, le QLabel a
+        # été détruit côté C++ (via deleteLater dans le refresh précédent)
+        # et l'accès à setPixmap lève RuntimeError sur le wrapper Python —
+        # c'est attendu, on abandonne la miniature en silence.
         with contextlib.suppress(RuntimeError):
             self._apply_thumbnail_pixmap(thumb, pixmap)
 

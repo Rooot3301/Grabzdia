@@ -29,3 +29,31 @@ def test_source_label_falls_back_to_capitalised_domain() -> None:
 def test_source_label_empty_for_invalid_input() -> None:
     assert source_label("") == ""
     assert source_label("pas-une-url") == ""
+
+
+# ---- infer_thumbnail_url : reconstruction pour historique migré ----------
+
+@pytest.mark.parametrize("url", [
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "https://youtu.be/dQw4w9WgXcQ",
+    "https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=42s",
+    "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+    "https://www.youtube.com/embed/dQw4w9WgXcQ",
+])
+def test_infer_thumbnail_url_covers_common_youtube_forms(url: str) -> None:
+    from app.utils.url_host import infer_thumbnail_url
+    assert infer_thumbnail_url(url) == "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+
+
+def test_infer_thumbnail_url_rejects_malformed_id() -> None:
+    """Un ID qui ne fait pas 11 caractères base64 URL-safe est refusé."""
+    from app.utils.url_host import infer_thumbnail_url
+    assert infer_thumbnail_url("https://youtu.be/tropcourt") == ""
+    assert infer_thumbnail_url("https://youtu.be/beaucoup_trop_long_pour_youtube") == ""
+
+
+def test_infer_thumbnail_url_empty_for_other_platforms() -> None:
+    from app.utils.url_host import infer_thumbnail_url
+    assert infer_thumbnail_url("https://vimeo.com/12345") == ""
+    assert infer_thumbnail_url("https://twitch.tv/foo") == ""
+    assert infer_thumbnail_url("") == ""
