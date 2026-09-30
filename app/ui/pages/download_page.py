@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QFrame,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -331,6 +332,10 @@ class DownloadPage(QWidget):
     def _build_job(self, url: str, title: str, destination: str) -> DownloadJob:
         audio = self._is_audio()
         quality = self.quality.currentText().replace("Automatique", "auto").replace("Meilleure qualité", "best")
+        # Miniature récupérée à l'analyse (present sur self.media pour les
+        # jobs individuels ; vide pour les lots où on n'analyse pas les
+        # entrées une à une pour rester rapide).
+        thumbnail = self.media.thumbnail_url if self.media and self.media.original_url == url else ""
         return DownloadJob(
             url=url,
             title=title,
@@ -347,6 +352,7 @@ class DownloadPage(QWidget):
             playlist=self.playlist.isChecked(),
             use_archive=self.settings.use_download_archive,
             sponsorblock=self.settings.sponsorblock_remove,
+            thumbnail_url=thumbnail,
         )
 
     def _enqueue(self, start: bool) -> None:
@@ -466,7 +472,25 @@ class DownloadPage(QWidget):
             self.items[job.id] = item
             self.queue_layout.insertWidget(self.queue_layout.count() - 1, item)
             self.queue_empty.setVisible(False)
+            self._fade_in(item)
         item.update_job(job)
+
+    def _fade_in(self, widget: QWidget) -> None:
+        """Fondu doux quand une nouvelle carte apparaît dans la file — évite
+        le « pop » brutal, sans ralentir l'ajout d'un lot de plusieurs jobs
+        (chaque carte a sa propre animation, indépendantes)."""
+        effect = QGraphicsOpacityEffect(widget)
+        effect.setOpacity(0.0)
+        widget.setGraphicsEffect(effect)
+        animation = QPropertyAnimation(effect, b"opacity", widget)
+        animation.setDuration(220)
+        animation.setStartValue(0.0)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        animation.finished.connect(lambda w=widget: w.setGraphicsEffect(None))
+        # Ancrage sur la carte pour survivre le temps de l'animation.
+        widget._fade_animation = animation  # type: ignore[attr-defined]
+        animation.start()
 
     def set_queue_stats(self, total: int, active: int, queued: int, maximum: int) -> None:
         if total == 0:

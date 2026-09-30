@@ -23,11 +23,11 @@ class Sidebar(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("sidebar")
-        self.setFixedWidth(224)
+        self.setFixedWidth(210)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 22, 16, 18)
-        layout.setSpacing(6)
+        layout.setContentsMargins(14, 20, 14, 16)
+        layout.setSpacing(4)
 
         brand_row = QHBoxLayout()
         brand_row.setSpacing(10)
@@ -53,6 +53,7 @@ class Sidebar(QWidget):
         self._group.setExclusive(True)
         self._buttons: list[QPushButton] = []
         entries = [
+            ("Accueil", "home.svg"),
             ("Télécharger", "download.svg"),
             ("Historique", "history.svg"),
             ("Paramètres", "settings.svg"),

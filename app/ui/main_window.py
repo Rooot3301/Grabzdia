@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -30,7 +31,7 @@ from app.services.settings_service import SettingsService
 from app.services.taskbar_service import TaskbarProgress, average_progress
 from app.services.update_service import UpdateCheckWorker, choose_update
 from app.ui.error_dialog import ErrorDialog
-from app.ui.pages import DownloadPage, HistoryPage, SettingsPage
+from app.ui.pages import DashboardPage, DownloadPage, HistoryPage, SettingsPage
 from app.ui.sidebar import Sidebar
 from app.ui.theme import apply_theme
 from app.ui.update_dialog import UpdateDialog
@@ -38,6 +39,27 @@ from app.utils.filename import validate_output_template
 from app.utils.logging_utils import redact_secrets
 from app.utils.paths import app_icon_path, logo_path
 from app.version import __version__
+
+
+def _read_url_list_from_txt(path: Path) -> list[str]:
+    """Return one URL per non-empty, non-comment line in a .txt playlist file.
+
+    A line is dropped if it is blank after stripping, or starts with `#` — the
+    convention lets people annotate their link lists without breaking imports.
+    UTF-8 with `errors=replace` so a mis-encoded file at least yields something
+    the user can see and correct rather than silently failing.
+    """
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    urls: list[str] = []
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        urls.append(line)
+    return urls
 
 
 class MainWindow(QMainWindow):
@@ -72,6 +94,10 @@ class MainWindow(QMainWindow):
         self._maybe_auto_update()
         if self.settings.auto_check_updates:
             self._check_updates(silent=True)
+        # Différé au prochain tick d'event loop pour que la fenêtre principale
+        # soit visible avant la modale d'onboarding — sinon elle apparaît
+        # avant qu'on ne voie sur quoi elle se pose.
+        QTimer.singleShot(200, self._maybe_show_onboarding)
 
     # ---- construction ------------------------------------------------------
     def _build_ui(self) -> None:
@@ -83,10 +109,11 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar()
         self.stack = QStackedWidget()
 
+        self.dashboard_page = DashboardPage(self.history_service, self.settings)
         self.download_page = DownloadPage(self.settings)
         self.history_page = HistoryPage(self.history_service)
         self.settings_page = SettingsPage(self.settings)
-        for page in (self.download_page, self.history_page, self.settings_page):
+        for page in (self.dashboard_page, self.download_page, self.history_page, self.settings_page):
             self.stack.addWidget(page)
 
         layout.addWidget(self.sidebar)
@@ -95,7 +122,18 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Prêt — téléchargez uniquement les contenus que vous êtes autorisé à utiliser.")
 
     def _connect(self) -> None:
-        self.sidebar.navigated.connect(self.stack.setCurrentIndex)
+        # Sidebar → animated navigation (setCurrentIndex + fade-in of the
+        # new page). Also fires _on_navigated for page-specific refreshes.
+        self.sidebar.navigated.connect(self._navigate_to)
+        self.sidebar.navigated.connect(self._on_navigated)
+
+        self.dashboard_page.navigate_download.connect(lambda: self._go_to(1))
+        self.dashboard_page.navigate_history.connect(lambda: self._go_to(2))
+        self.dashboard_page.navigate_settings.connect(lambda: self._go_to(3))
+        self.dashboard_page.redownload_requested.connect(self._redownload)
+        self.dashboard_page.delete_entry_requested.connect(self._delete_history_entry)
+        self.dashboard_page.open_folder_requested.connect(self._open_history_folder)
+        self.dashboard_page.copy_url_requested.connect(self._copy_url_to_clipboard)
 
         self.download_page.analyze_requested.connect(self.metadata.analyze)
         self.download_page.job_ready.connect(self._on_job_ready)
@@ -134,7 +172,8 @@ class MainWindow(QMainWindow):
 
     def _shortcuts(self) -> None:
         shortcuts = {
-            "Ctrl+,": lambda: self._go_to(2),
+            # 3 = Paramètres, décalé de 1 depuis l'ajout de la page Accueil.
+            "Ctrl+,": lambda: self._go_to(3),
             "Ctrl+O": self.download_page.browse_button.animateClick,
             "Ctrl+Return": self.download_page.download_button.animateClick,
             "Ctrl+L": self.download_page.toggle_logs,
@@ -146,8 +185,39 @@ class MainWindow(QMainWindow):
             self.addAction(action)
 
     def _go_to(self, index: int) -> None:
-        self.stack.setCurrentIndex(index)
+        self._navigate_to(index)
         self.sidebar.set_current(index)
+        self._on_navigated(index)
+
+    def _navigate_to(self, index: int) -> None:
+        """Swap to page `index` with a short fade-in on the incoming widget.
+
+        Uses a QGraphicsOpacityEffect scoped to the target widget rather
+        than animating the whole stack : cheaper, and the finished handler
+        clears the effect so it doesn't linger on complex child paints.
+        """
+        widget = self.stack.widget(index)
+        self.stack.setCurrentIndex(index)
+        if widget is None:
+            return
+        effect = QGraphicsOpacityEffect(widget)
+        effect.setOpacity(0.0)
+        widget.setGraphicsEffect(effect)
+        animation = QPropertyAnimation(effect, b"opacity", widget)
+        animation.setDuration(160)
+        animation.setStartValue(0.0)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        animation.finished.connect(lambda w=widget: w.setGraphicsEffect(None))
+        # Keep a reference so Qt doesn't garbage-collect it mid-animation.
+        self._page_fade = animation
+        animation.start()
+
+    def _on_navigated(self, index: int) -> None:
+        # Only the dashboard needs re-computing on nav — other pages hold
+        # widgets that are already live-updated by their own signals.
+        if index == 0:
+            self.dashboard_page.refresh()
 
     # ---- metadata / thumbnail ---------------------------------------------
     def _metadata_ready(self, media: MediaInfo) -> None:
@@ -212,10 +282,11 @@ class MainWindow(QMainWindow):
             embed_thumbnail=bool(entry.get("embed_thumbnail", True)),
             playlist=bool(entry.get("playlist", False)),
             use_archive=bool(entry.get("use_archive", False)),
+            thumbnail_url=str(entry.get("thumbnail_url", "")),
         )
         self.manager.enqueue(job, True)
         self._persist_queue()
-        self._go_to(0)
+        self._go_to(1)
         self._update_stats()
 
     def _log_output(self, line: str) -> None:
@@ -235,6 +306,10 @@ class MainWindow(QMainWindow):
     def _job_finished(self, job: DownloadJob) -> None:
         self.history_service.add(job.to_dict(), self.settings.history_limit)
         self.history_page.refresh()
+        # KPI (aujourd'hui, taux de succès, dernières entrées) reflètent
+        # l'historique — sans ce refresh ils resteraient figés jusqu'à la
+        # prochaine ouverture manuelle de la page Accueil.
+        self.dashboard_page.refresh()
         self._persist_queue()
         self.statusBar().showMessage(f"{job.title} : {job.status.value}", 8000)
         if job.status == DownloadStatus.COMPLETED:
@@ -288,6 +363,30 @@ class MainWindow(QMainWindow):
             return
         ErrorDialog(job.title, job.error, job.error_hint, job.error_output, self).exec()
 
+    # ---- dashboard kebab -------------------------------------------------
+    def _delete_history_entry(self, entry_id: str) -> None:
+        if not entry_id:
+            return
+        self.history_service.remove(entry_id)
+        self.history_page.refresh()
+        self.dashboard_page.refresh()
+
+    def _open_history_folder(self, entry: dict) -> None:
+        target = entry.get("final_path") or entry.get("destination") or ""
+        if not target:
+            return
+        path = Path(target)
+        folder = path if path.is_dir() else path.parent
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    def _copy_url_to_clipboard(self, url: str) -> None:
+        if not url:
+            return
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(url)
+        self.statusBar().showMessage("URL copiée dans le presse-papier.", 3000)
+
     def _show_history_error_details(self, entry: dict) -> None:
         ErrorDialog(
             str(entry.get("title", "")),
@@ -310,6 +409,9 @@ class MainWindow(QMainWindow):
         apply_theme(QApplication.instance(), self.settings.theme)
         self.manager.start_available()
         self.download_page.refresh_settings()
+        # Le prénom paramétré alimente la salutation du dashboard : sans
+        # refresh, la modification n'est visible qu'au prochain aller-retour.
+        self.dashboard_page.refresh()
         self._update_stats()
         self.statusBar().showMessage("Paramètres enregistrés.", 4000)
 
@@ -337,6 +439,23 @@ class MainWindow(QMainWindow):
         else:
             self.sidebar.set_status("Composants prêts", "ok")
             self.settings_page.set_component_status("yt-dlp et FFmpeg sont installés et prêts.")
+
+    def _maybe_show_onboarding(self) -> None:
+        """Petit dialogue « apprenons à nous connaître » au premier lancement.
+
+        Ne réapparaît jamais après (onboarding_completed=True est écrit dès
+        que la modale se ferme, que l'utilisateur ait tapé quelque chose ou
+        cliqué « Plus tard »)."""
+        if self.settings.onboarding_completed:
+            return
+        from app.ui.onboarding_dialog import OnboardingDialog
+
+        dialog = OnboardingDialog(self.settings.display_name, self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            self.settings.display_name = dialog.chosen_name()
+        self.settings.onboarding_completed = True
+        self.settings_service.save(self.settings)
+        self.dashboard_page.refresh()
 
     def _maybe_auto_update(self) -> None:
         if self.settings.auto_update_ytdlp and "yt-dlp" not in self.binaries.missing():
@@ -429,11 +548,23 @@ class MainWindow(QMainWindow):
 
     def dropEvent(self, event) -> None:
         data = event.mimeData()
-        candidates = [url.toString() for url in data.urls()] if data.hasUrls() else data.text().splitlines()
-        urls = [candidate.strip() for candidate in candidates if candidate.strip()]
+        if data.hasUrls():
+            urls: list[str] = []
+            for candidate in data.urls():
+                local = candidate.toLocalFile()
+                # Un fichier .txt lâché sur la fenêtre est traité comme une
+                # « liste de liens » : on lit son contenu, une URL par ligne,
+                # et on ignore les lignes vides ainsi que les commentaires (#).
+                if local and Path(local).is_file() and Path(local).suffix.lower() == ".txt":
+                    urls.extend(_read_url_list_from_txt(Path(local)))
+                else:
+                    urls.append(candidate.toString().strip())
+        else:
+            urls = [line.strip() for line in data.text().splitlines()]
+        urls = [url for url in urls if url]
         if not urls:
             return
-        self._go_to(0)
+        self._go_to(1)
         if len(urls) == 1:
             self.download_page.load_url(urls[0])
         else:

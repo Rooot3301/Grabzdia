@@ -6,6 +6,7 @@ yt-dlp can be refreshed independently of the application.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import urllib.request
@@ -15,10 +16,12 @@ from pathlib import Path
 
 # Official sources.
 YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+YTDLP_SUMS_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS"
 YTDLP_LATEST_API = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
 # gyan.dev builds are the canonical Windows FFmpeg distribution linked from
 # ffmpeg.org; the "essentials" archive bundles ffmpeg.exe and ffprobe.exe.
 FFMPEG_ZIP_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+FFMPEG_ZIP_SHA256_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256"
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _CHUNK = 262144
@@ -115,6 +118,66 @@ def read_ytdlp_version(path: Path) -> str:
     except (OSError, subprocess.SubprocessError):
         pass
     return ""
+
+
+def sha256_of_file(path: Path) -> str:
+    """SHA-256 hex digest of a local file, computed in 64 KiB chunks."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def parse_ytdlp_sums(text: str, target: str = "yt-dlp.exe") -> str:
+    """Extract the hex digest for `target` from a yt-dlp SHA2-256SUMS file.
+
+    Each line is `<hex> *<name>` (or with two spaces). Returns '' if absent.
+    """
+    for raw in text.splitlines():
+        parts = raw.strip().split()
+        if len(parts) >= 2 and parts[-1].lstrip("*").strip() == target:
+            return parts[0].lower()
+    return ""
+
+
+def parse_ffmpeg_sha256_sidecar(text: str) -> str:
+    """Extract the hex digest from a gyan.dev `.zip.sha256` sidecar.
+
+    Format is `<hex>  <filename>` (two spaces, GNU sha256sum style) or
+    just `<hex>` on its own. Returns '' if unparseable.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return ""
+    return stripped.split()[0].lower()
+
+
+def fetch_ytdlp_sha256(target: str = "yt-dlp.exe") -> str:
+    """Fetch and parse yt-dlp's SHA2-256SUMS release asset, or '' on failure.
+
+    Silent by design : a network hiccup on the sidecar must not turn a
+    successful download into an installer failure. The caller decides
+    whether to enforce the check or degrade gracefully.
+    """
+    try:
+        request = urllib.request.Request(YTDLP_SUMS_URL, headers={"User-Agent": "Grabzdia"})
+        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 (fixed https host)
+            text = response.read().decode("utf-8", "replace")
+        return parse_ytdlp_sums(text, target)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def fetch_ffmpeg_sha256() -> str:
+    """Fetch and parse gyan.dev's `.zip.sha256` sidecar, or '' on failure."""
+    try:
+        request = urllib.request.Request(FFMPEG_ZIP_SHA256_URL, headers={"User-Agent": "Grabzdia"})
+        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 (fixed https host)
+            text = response.read().decode("utf-8", "replace")
+        return parse_ffmpeg_sha256_sidecar(text)
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def latest_ytdlp_version() -> str:

@@ -13,6 +13,8 @@ class ApplicationSettings:
     theme: str = "dark"
     parallel_downloads: int = 2
     history_limit: int = 500
+    display_name: str = ""
+    onboarding_completed: bool = False
     organize_mode: str = "all"
     use_download_archive: bool = False
     notifications: bool = True

@@ -9,20 +9,6 @@ pytest.importorskip("pytestqt")
 
 
 @pytest.fixture
-def window(qtbot, monkeypatch):
-    from app.ui.main_window import MainWindow
-
-    # Never hit the network for the startup update check during tests.
-    monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
-    # auto_update_ytdlp est vrai par défaut : sans mock, chaque construction
-    # lance BootstrapWorker qui interroge GitHub et télécharge yt-dlp.exe.
-    monkeypatch.setattr(MainWindow, "_update_ytdlp", lambda self, *args, **kwargs: None, raising=False)
-    win = MainWindow()
-    qtbot.addWidget(win)
-    return win
-
-
-@pytest.fixture
 def page(qtbot):
     """A standalone DownloadPage (its error signal is not wired to a dialog)."""
     from app.ui.pages import DownloadPage
@@ -42,8 +28,9 @@ def settings_page(qtbot):
     return widget
 
 
-def test_window_has_three_pages(window):
-    assert window.stack.count() == 3
+def test_window_has_four_pages(window):
+    # Accueil (0), Télécharger (1), Historique (2), Paramètres (3)
+    assert window.stack.count() == 4
 
 
 def test_navigation_updates_stack(window):
@@ -164,7 +151,7 @@ def test_apply_theme_sets_the_link_palette_colour(qtbot, restore_app_theme):
     from app.ui.theme import LINK_COLORS, apply_theme
 
     app = restore_app_theme
-    for theme in ("dark", "light"):
+    for theme in ("dark", "light", "midnight", "sunset", "forest"):
         resolved = apply_theme(app, theme)
         assert app.palette().color(QPalette.ColorRole.Link) == QColor(LINK_COLORS[resolved])
 
@@ -240,3 +227,34 @@ def test_default_settings_enable_auto_ytdlp_update():
     from app.models.application_settings import ApplicationSettings
 
     assert ApplicationSettings().auto_update_ytdlp is True
+
+
+def test_txt_playlist_file_expands_to_its_contained_urls(tmp_path):
+    """Un .txt de liens doit être expansé, pas traité comme une URL à télécharger."""
+    from app.ui.main_window import _read_url_list_from_txt
+
+    playlist = tmp_path / "liens.txt"
+    playlist.write_text(
+        "\n".join([
+            "https://example.com/a",
+            "  ",  # ligne vide après strip
+            "# commentaire à ignorer",
+            "https://example.com/b",
+            "",
+            "https://example.com/c",
+        ]),
+        encoding="utf-8",
+    )
+
+    assert _read_url_list_from_txt(playlist) == [
+        "https://example.com/a",
+        "https://example.com/b",
+        "https://example.com/c",
+    ]
+
+
+def test_txt_playlist_missing_file_returns_empty(tmp_path):
+    """Un chemin qui n'existe plus ne doit pas faire crasher le drop."""
+    from app.ui.main_window import _read_url_list_from_txt
+
+    assert _read_url_list_from_txt(tmp_path / "manquant.txt") == []

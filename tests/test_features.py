@@ -81,6 +81,7 @@ def test_redownload_from_history_builds_job(qtbot, monkeypatch):
 
     monkeypatch.setattr(MainWindow, "_check_updates", lambda self, silent=True: None, raising=False)
     monkeypatch.setattr(MainWindow, "_update_ytdlp", lambda self, *args, **kwargs: None, raising=False)
+    monkeypatch.setattr(MainWindow, "_maybe_show_onboarding", lambda self: None, raising=False)
     win = MainWindow()
     qtbot.addWidget(win)
     # Do not launch a real yt-dlp process: verify the job is built and enqueued.
@@ -95,7 +96,8 @@ def test_redownload_from_history_builds_job(qtbot, monkeypatch):
     }
     win._redownload(entry)
     assert any(job.url == "https://example.com/watch?v=abc" for job in win.manager.jobs)
-    assert win.stack.currentIndex() == 0
+    # 1 = page Télécharger (0 est devenu Accueil).
+    assert win.stack.currentIndex() == 1
 
 
 def test_history_search_filters(qtbot, tmp_path, monkeypatch):
