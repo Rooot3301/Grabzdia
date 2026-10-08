@@ -286,18 +286,40 @@ def fetch_deno_release_info() -> tuple[str, str, str]:
     return download_url, sha_url, tag
 
 
-def fetch_deno_sha256(sha_url: str) -> str:
-    """Télécharge le `.sha256sum` et parse l'empreinte, '' si échec.
+def parse_deno_sha256_sidecar(text: str) -> str:
+    """Extrait l'empreinte du sidecar `.sha256sum` publié par denoland.
 
-    Même format que gyan.dev : `<hex>  <filename>` séparé par deux espaces.
+    Format propre à denoland (sortie `Get-FileHash` PowerShell) sur 3 lignes :
+        Algorithm : SHA256
+        Hash      : A0C3101B4158D1DFB7D6A78A7BF0F3DE80C96BB423C152BEEC8BEB22786F2238
+        Path      : C:\\a\\deno\\deno\\target\\release\\deno-x86_64-pc-windows-msvc.zip
+
+    On cherche la ligne « Hash » et on en sort le hex (lowercased pour
+    pouvoir comparer avec sha256_of_file qui renvoie en minuscules).
+    Retourne '' si le format n'est pas reconnu.
     """
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if not stripped.lower().startswith("hash"):
+            continue
+        _, _, after = stripped.partition(":")
+        candidate = after.strip().lower()
+        # Un hash SHA-256 fait 64 caractères hex. Garde-fou minimal pour
+        # éviter de retourner une ligne mal formée.
+        if len(candidate) == 64 and all(c in "0123456789abcdef" for c in candidate):
+            return candidate
+    return ""
+
+
+def fetch_deno_sha256(sha_url: str) -> str:
+    """Télécharge le sidecar deno et parse l'empreinte, '' si échec."""
     if not sha_url:
         return ""
     try:
         request = urllib.request.Request(sha_url, headers={"User-Agent": "Grabzdia"})
         with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 (fixed https host)
             text = response.read().decode("utf-8", "replace")
-        return parse_ffmpeg_sha256_sidecar(text)
+        return parse_deno_sha256_sidecar(text)
     except Exception:  # noqa: BLE001
         return ""
 

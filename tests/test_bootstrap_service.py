@@ -11,6 +11,7 @@ from app.services.bootstrap_service import (
     extract_ffmpeg,
     fetch_deno_release_info,
     latest_ytdlp_version,
+    parse_deno_sha256_sidecar,
     parse_ffmpeg_sha256_sidecar,
     parse_ytdlp_sums,
     read_deno_version,
@@ -254,6 +255,28 @@ def test_components_for_pulls_deno_when_missing():
     """La résolution des composants inclut deno s'il manque."""
     components = components_for(["deno"])
     assert [c.key for c in components] == ["deno"]
+
+
+def test_parse_deno_sha256_sidecar_extracts_hex_from_get_filehash_format():
+    """denoland publie la sortie PowerShell Get-FileHash, pas le format GNU."""
+    content = (
+        "Algorithm : SHA256\n"
+        "Hash      : A0C3101B4158D1DFB7D6A78A7BF0F3DE80C96BB423C152BEEC8BEB22786F2238\n"
+        "Path      : C:\\a\\deno\\deno\\target\\release\\deno-x86_64-pc-windows-msvc.zip\n"
+    )
+    # Toujours renvoyé en minuscules pour matcher sha256_of_file.
+    assert parse_deno_sha256_sidecar(content) == (
+        "a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238"
+    )
+
+
+def test_parse_deno_sha256_sidecar_empty_when_hash_line_missing():
+    assert parse_deno_sha256_sidecar("Algorithm : SHA256\nPath : whatever\n") == ""
+
+
+def test_parse_deno_sha256_sidecar_empty_on_malformed_hex():
+    """Un hash qui ne fait pas 64 hex est refusé, pas renvoyé en bruit."""
+    assert parse_deno_sha256_sidecar("Hash : NOTAHASHATALL\n") == ""
 
 
 def test_components_for_orders_ytdlp_ffmpeg_deno():
