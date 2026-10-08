@@ -7,10 +7,13 @@ from pathlib import Path
 from app.services import bootstrap_service
 from app.services.bootstrap_service import (
     components_for,
+    extract_deno,
     extract_ffmpeg,
+    fetch_deno_release_info,
     latest_ytdlp_version,
     parse_ffmpeg_sha256_sidecar,
     parse_ytdlp_sums,
+    read_deno_version,
     read_ytdlp_version,
     select_zip_members,
     sha256_of_file,
@@ -162,3 +165,99 @@ def test_parse_ffmpeg_sha256_sidecar_extracts_hex():
 def test_parse_ffmpeg_sha256_sidecar_empty_is_safe():
     assert parse_ffmpeg_sha256_sidecar("") == ""
     assert parse_ffmpeg_sha256_sidecar("   \n") == ""
+
+
+# ---- deno (nouveau composant) --------------------------------------------
+
+def test_read_deno_version_parses_first_line(monkeypatch, tmp_path: Path):
+    """`deno --version` renvoie trois lignes, on ne garde que la version."""
+    fake = tmp_path / "deno.exe"
+    fake.write_bytes(b"stub")
+    monkeypatch.setattr(
+        bootstrap_service.subprocess, "run",
+        lambda *args, **kwargs: _FakeCompleted(0, b"deno 1.46.0 (release, x86_64-pc-windows-msvc)\ntypescript 5.5.4\nv8 12.9\n"),
+    )
+    assert read_deno_version(fake) == "1.46.0"
+
+
+def test_read_deno_version_returns_empty_when_subprocess_fails(monkeypatch, tmp_path: Path):
+    fake = tmp_path / "deno.exe"
+    fake.write_bytes(b"stub")
+    monkeypatch.setattr(
+        bootstrap_service.subprocess, "run",
+        lambda *args, **kwargs: _FakeCompleted(1, b""),
+    )
+    assert read_deno_version(fake) == ""
+
+
+def test_fetch_deno_release_info_picks_the_windows_zip_and_its_sha(monkeypatch):
+    """L'API GitHub liste tous les assets ; on repère zip + sidecar sha256."""
+    class _Resp:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self): return (
+            b'{"tag_name": "v1.46.0", "assets": ['
+            b'{"name": "deno-x86_64-pc-windows-msvc.zip",'
+            b' "browser_download_url": "https://g/deno-x86_64-pc-windows-msvc.zip"},'
+            b'{"name": "deno-x86_64-pc-windows-msvc.zip.sha256sum",'
+            b' "browser_download_url": "https://g/deno-x86_64-pc-windows-msvc.zip.sha256sum"},'
+            b'{"name": "deno-x86_64-apple-darwin.zip",'
+            b' "browser_download_url": "https://g/mac"}'
+            b']}'
+        )
+
+    monkeypatch.setattr(
+        bootstrap_service.urllib.request, "urlopen",
+        lambda request, timeout=10: _Resp(),
+    )
+    download, sha, tag = fetch_deno_release_info()
+    assert download.endswith("deno-x86_64-pc-windows-msvc.zip")
+    assert sha.endswith(".sha256sum")
+    assert tag == "v1.46.0"
+
+
+def test_fetch_deno_release_info_returns_empties_when_github_fails(monkeypatch):
+    def boom(*args, **kwargs):
+        raise OSError("no network")
+    monkeypatch.setattr(bootstrap_service.urllib.request, "urlopen", boom)
+    assert fetch_deno_release_info() == ("", "", "")
+
+
+def test_extract_deno_pulls_executable_from_archive(tmp_path: Path):
+    """L'archive deno officielle est juste `deno.exe` à la racine."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("deno.exe", b"BINARY-DENO")
+    zip_path = tmp_path / "deno.zip"
+    zip_path.write_bytes(buffer.getvalue())
+
+    dest = tmp_path / "bin"
+    extracted = extract_deno(zip_path, dest)
+
+    assert extracted is not None
+    assert extracted.name == "deno.exe"
+    assert extracted.read_bytes() == b"BINARY-DENO"
+
+
+def test_extract_deno_returns_none_when_archive_is_empty(tmp_path: Path):
+    """Une archive sans deno.exe doit renvoyer None, pas lever."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("README.md", b"nothing here")
+    zip_path = tmp_path / "deno.zip"
+    zip_path.write_bytes(buffer.getvalue())
+
+    assert extract_deno(zip_path, tmp_path / "bin") is None
+
+
+def test_components_for_pulls_deno_when_missing():
+    """La résolution des composants inclut deno s'il manque."""
+    components = components_for(["deno"])
+    assert [c.key for c in components] == ["deno"]
+
+
+def test_components_for_orders_ytdlp_ffmpeg_deno():
+    """Ordre stable : yt-dlp -> ffmpeg -> deno (ordre d'importance décroissante
+    au premier démarrage, et aussi ordre historique)."""
+    components = components_for(["deno", "yt-dlp", "ffmpeg"])
+    assert [c.key for c in components] == ["yt-dlp", "ffmpeg", "deno"]

@@ -8,7 +8,14 @@ from app.utils.paths import binary_dir, managed_binary_dir
 
 
 class BinaryService:
-    NAMES = {"yt-dlp": "yt-dlp.exe", "ffmpeg": "ffmpeg.exe", "ffprobe": "ffprobe.exe"}
+    NAMES = {
+        "yt-dlp": "yt-dlp.exe",
+        "ffmpeg": "ffmpeg.exe",
+        "ffprobe": "ffprobe.exe",
+        # Runtime JavaScript requis par les versions récentes de yt-dlp pour
+        # décoder les URL YouTube (EJS / SABR). Sans lui, 403 Forbidden.
+        "deno": "deno.exe",
+    }
 
     def locate(self, name: str) -> Path:
         filename = self.NAMES[name]

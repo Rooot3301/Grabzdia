@@ -22,6 +22,13 @@ YTDLP_LATEST_API = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
 # ffmpeg.org; the "essentials" archive bundles ffmpeg.exe and ffprobe.exe.
 FFMPEG_ZIP_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 FFMPEG_ZIP_SHA256_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256"
+# deno fournit un runtime JavaScript nécessaire aux versions récentes de
+# yt-dlp pour décoder les URL de téléchargement YouTube (SABR / EJS). Sans
+# lui, YouTube renvoie HTTP 403 Forbidden quasi systématiquement. On passe
+# par l'API GitHub pour avoir asset + sha en même temps.
+DENO_LATEST_API = "https://api.github.com/repos/denoland/deno/releases/latest"
+DENO_ASSET_NAME = "deno-x86_64-pc-windows-msvc.zip"
+DENO_FALLBACK_URL = f"https://github.com/denoland/deno/releases/latest/download/{DENO_ASSET_NAME}"
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _CHUNK = 262144
@@ -37,6 +44,7 @@ class Component:
 COMPONENTS: dict[str, Component] = {
     "yt-dlp": Component("yt-dlp", "yt-dlp", ("yt-dlp",)),
     "ffmpeg": Component("ffmpeg", "FFmpeg", ("ffmpeg", "ffprobe")),
+    "deno": Component("deno", "deno (runtime JavaScript)", ("deno",)),
 }
 
 
@@ -44,13 +52,17 @@ def components_for(missing: list[str]) -> list[Component]:
     """Map missing binary names to the components that must be downloaded.
 
     ffmpeg and ffprobe ship together in one archive, so needing either pulls
-    the single FFmpeg component. Order is stable: yt-dlp first.
+    the single FFmpeg component. Order is stable: yt-dlp first, puis FFmpeg,
+    puis deno (dépendance plus récente, moins critique au premier démarrage
+    si YouTube n'est pas tout de suite en jeu).
     """
     keys: list[str] = []
     if "yt-dlp" in missing:
         keys.append("yt-dlp")
     if "ffmpeg" in missing or "ffprobe" in missing:
         keys.append("ffmpeg")
+    if "deno" in missing:
+        keys.append("deno")
     return [COMPONENTS[key] for key in keys]
 
 
@@ -197,6 +209,115 @@ def latest_ytdlp_version() -> str:
         return str(data.get("tag_name", "")).strip()
     except Exception:  # noqa: BLE001 (any failure ⇒ skip the update, never crash startup)
         return ""
+
+
+def read_ffmpeg_version(path: Path) -> str:
+    """Première ligne de `ffmpeg -version` → « ffmpeg version 6.1-essentials… »,
+    on garde le numéro (ex. « 6.1 »). '' si l'exe manque ou ne répond pas.
+    """
+    try:
+        completed = subprocess.run(
+            [str(path), "-version"],
+            capture_output=True,
+            timeout=10,
+            creationflags=_NO_WINDOW,
+        )
+        if completed.returncode != 0:
+            return ""
+        first_line = completed.stdout.decode("utf-8", "replace").splitlines()[0]
+        parts = first_line.split()
+        # Format : « ffmpeg version N.N.N-tag Copyright … »
+        if len(parts) >= 3 and parts[0] == "ffmpeg" and parts[1] == "version":
+            return parts[2]
+    except (OSError, subprocess.SubprocessError, IndexError):
+        pass
+    return ""
+
+
+def read_deno_version(path: Path) -> str:
+    """Lecture de la version locale via `deno --version`, '' si indisponible.
+
+    Première ligne attendue : « deno 1.46.0 (release, x86_64-pc-windows-msvc) ».
+    """
+    try:
+        completed = subprocess.run(
+            [str(path), "--version"],
+            capture_output=True,
+            timeout=10,
+            creationflags=_NO_WINDOW,
+        )
+        if completed.returncode != 0:
+            return ""
+        first_line = completed.stdout.decode("utf-8", "replace").splitlines()[0]
+        parts = first_line.split()
+        if len(parts) >= 2 and parts[0] == "deno":
+            return parts[1]
+    except (OSError, subprocess.SubprocessError, IndexError):
+        pass
+    return ""
+
+
+def fetch_deno_release_info() -> tuple[str, str, str]:
+    """Lit l'API GitHub pour choper l'URL de l'asset Windows et son sidecar
+    SHA-256, plus le `tag_name` (ex. « v1.46.0 »).
+
+    Retourne ('', '', '') si quoi que ce soit casse (hors ligne, rate limit).
+    Les trois sorties sont corrélées : si l'une est vide, les autres aussi.
+    """
+    try:
+        request = urllib.request.Request(
+            DENO_LATEST_API,
+            headers={"User-Agent": "Grabzdia", "Accept": "application/vnd.github+json"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 (fixed https host)
+            data = json.load(response)
+    except Exception:  # noqa: BLE001
+        return "", "", ""
+    tag = str(data.get("tag_name", "")).strip()
+    download_url = ""
+    sha_url = ""
+    for asset in data.get("assets", []) or []:
+        name = str(asset.get("name", ""))
+        url = str(asset.get("browser_download_url", ""))
+        if name == DENO_ASSET_NAME:
+            download_url = url
+        elif name == DENO_ASSET_NAME + ".sha256sum":
+            sha_url = url
+    return download_url, sha_url, tag
+
+
+def fetch_deno_sha256(sha_url: str) -> str:
+    """Télécharge le `.sha256sum` et parse l'empreinte, '' si échec.
+
+    Même format que gyan.dev : `<hex>  <filename>` séparé par deux espaces.
+    """
+    if not sha_url:
+        return ""
+    try:
+        request = urllib.request.Request(sha_url, headers={"User-Agent": "Grabzdia"})
+        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 (fixed https host)
+            text = response.read().decode("utf-8", "replace")
+        return parse_ffmpeg_sha256_sidecar(text)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def extract_deno(zip_path: Path, dest_dir: Path) -> Path | None:
+    """Sort deno.exe de l'archive, renvoie son chemin de destination ou None.
+
+    L'archive deno officielle contient un unique binaire `deno.exe` à la
+    racine ; on tolère néanmoins un éventuel sous-dossier au cas où ça
+    change dans une release future.
+    """
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path) as archive:
+        for name in archive.namelist():
+            if name.replace("\\", "/").endswith("deno.exe") or name == "deno.exe":
+                target = dest_dir / "deno.exe"
+                with archive.open(name) as source, open(target, "wb") as handle:
+                    handle.write(source.read())
+                return target
+    return None
 
 
 def download_file(url: str, target: Path, on_progress=None) -> None:
