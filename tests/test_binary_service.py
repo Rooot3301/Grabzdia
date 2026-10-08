@@ -37,11 +37,11 @@ def test_locate_raises_when_absent_everywhere(dirs):
 
 
 def test_missing_lists_all_absent(dirs):
-    assert sorted(BinaryService().missing()) == ["ffmpeg", "ffprobe", "yt-dlp"]
+    assert sorted(BinaryService().missing()) == ["deno", "ffmpeg", "ffprobe", "yt-dlp"]
 
 
 def test_missing_is_empty_when_all_present(dirs):
     managed, _bundled = dirs
-    for name in ("yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe"):
+    for name in ("yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe", "deno.exe"):
         (managed / name).write_text("x")
     assert BinaryService().missing() == []

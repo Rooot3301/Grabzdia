@@ -418,23 +418,26 @@ def test_js_runtimes_arg_absent_when_deno_not_available():
     assert "--js-runtimes" not in args
 
 
-def test_js_runtimes_arg_points_at_the_managed_deno():
+def test_js_runtimes_arg_points_at_the_managed_deno(tmp_path):
     """Quand BinaryService trouve deno, on force yt-dlp à l'utiliser pour
     éviter la dépendance au PATH système."""
     from pathlib import Path
 
     from app.services.download_service import DownloadRunner
 
+    deno_path = tmp_path / "deno.exe"
+
     class _Binaries:
         def locate(self, name: str) -> Path:
             if name == "deno":
-                return Path("C:/Grabzdia/bin/deno.exe")
+                return deno_path
             raise RuntimeError(name)
 
     args = DownloadRunner(_job(), binaries=_Binaries()).arguments()
     assert "--js-runtimes" in args
     position = args.index("--js-runtimes")
-    assert args[position + 1] == "deno:C:/Grabzdia/bin/deno.exe"
+    # str(Path) rend un chemin natif de l'OS — on compare au même format.
+    assert args[position + 1] == f"deno:{deno_path}"
 
 
 def test_js_runtimes_arg_omitted_when_deno_lookup_fails():
