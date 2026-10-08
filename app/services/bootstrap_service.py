@@ -211,6 +211,29 @@ def latest_ytdlp_version() -> str:
         return ""
 
 
+def read_ffmpeg_version(path: Path) -> str:
+    """Première ligne de `ffmpeg -version` → « ffmpeg version 6.1-essentials… »,
+    on garde le numéro (ex. « 6.1 »). '' si l'exe manque ou ne répond pas.
+    """
+    try:
+        completed = subprocess.run(
+            [str(path), "-version"],
+            capture_output=True,
+            timeout=10,
+            creationflags=_NO_WINDOW,
+        )
+        if completed.returncode != 0:
+            return ""
+        first_line = completed.stdout.decode("utf-8", "replace").splitlines()[0]
+        parts = first_line.split()
+        # Format : « ffmpeg version N.N.N-tag Copyright … »
+        if len(parts) >= 3 and parts[0] == "ffmpeg" and parts[1] == "version":
+            return parts[2]
+    except (OSError, subprocess.SubprocessError, IndexError):
+        pass
+    return ""
+
+
 def read_deno_version(path: Path) -> str:
     """Lecture de la version locale via `deno --version`, '' si indisponible.
 

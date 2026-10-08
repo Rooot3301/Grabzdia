@@ -151,7 +151,7 @@ class SettingsPage(QWidget):
         card.setObjectName("card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 18, 20, 18)
-        layout.addWidget(self._section("Composants", "yt-dlp et FFmpeg, téléchargés localement"))
+        layout.addWidget(self._section("Composants", "yt-dlp, FFmpeg et deno, téléchargés localement"))
         self.component_status = QLabel("Vérification…")
         self.component_status.setObjectName("mutedText")
         self.component_status.setWordWrap(True)
@@ -162,10 +162,39 @@ class SettingsPage(QWidget):
         self.update_button.clicked.connect(self.update_ytdlp_requested)
         row.addWidget(self.update_button)
         layout.addLayout(row)
+
+        # Versions détaillées + horodatage de la dernière vérification.
+        # Donne à l'utilisateur un signal visuel que l'auto-update tourne
+        # vraiment, au lieu de deviner.
+        self.component_versions = QLabel("")
+        self.component_versions.setObjectName("mutedText")
+        self.component_versions.setWordWrap(True)
+        self.component_versions.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(self.component_versions)
+
+        self.last_check = QLabel("")
+        self.last_check.setObjectName("mutedText")
+        self.last_check.setWordWrap(True)
+        layout.addWidget(self.last_check)
+
         self.auto_update = QCheckBox("Mettre à jour yt-dlp automatiquement au démarrage")
         self.auto_update.setChecked(self.settings.auto_update_ytdlp)
         layout.addWidget(self.auto_update)
         return card
+
+    def set_component_versions(self, versions: dict[str, str]) -> None:
+        """Affiche la version de chaque binaire local, ou « absent »."""
+        lines = []
+        labels = {"yt-dlp": "yt-dlp", "ffmpeg": "FFmpeg", "deno": "deno"}
+        for key in ("yt-dlp", "ffmpeg", "deno"):
+            value = versions.get(key, "").strip()
+            lines.append(f"• {labels[key]} : {value or 'non installé'}")
+        self.component_versions.setText("\n".join(lines))
+
+    def set_last_update_check(self, text: str) -> None:
+        """Horodatage de la dernière vérification auto-update, pour que
+        l'utilisateur voie bien que ça tourne."""
+        self.last_check.setText(text)
 
     def _notifications_card(self) -> QFrame:
         card = QFrame()

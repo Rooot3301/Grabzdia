@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, QUrl
@@ -438,7 +439,34 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(text + ".")
         else:
             self.sidebar.set_status("Composants prêts", "ok")
-            self.settings_page.set_component_status("yt-dlp et FFmpeg sont installés et prêts.")
+            self.settings_page.set_component_status("yt-dlp, FFmpeg et deno sont installés et prêts.")
+        self._refresh_component_versions()
+
+    def _refresh_component_versions(self) -> None:
+        """Interroge chaque binaire local et affiche sa version dans la page
+        Paramètres → Composants. Les probes sont rapides (< 1s pour les trois)
+        mais on les groupe ici pour éviter de bloquer le démarrage."""
+        from app.exceptions import BinaryNotFoundError
+        from app.services.bootstrap_service import (
+            read_deno_version,
+            read_ffmpeg_version,
+            read_ytdlp_version,
+        )
+
+        probes = {
+            "yt-dlp": read_ytdlp_version,
+            "ffmpeg": read_ffmpeg_version,
+            "deno": read_deno_version,
+        }
+        versions: dict[str, str] = {}
+        for name, reader in probes.items():
+            try:
+                path = self.binaries.locate(name)
+            except BinaryNotFoundError:
+                versions[name] = ""
+                continue
+            versions[name] = reader(path)
+        self.settings_page.set_component_versions(versions)
 
     def _maybe_show_onboarding(self) -> None:
         """Petit dialogue « apprenons à nous connaître » au premier lancement.
@@ -458,11 +486,19 @@ class MainWindow(QMainWindow):
         self.dashboard_page.refresh()
 
     def _maybe_auto_update(self) -> None:
-        if self.settings.auto_update_ytdlp and "yt-dlp" not in self.binaries.missing():
-            # Silent at startup: an offline machine (or GitHub 5xx) must NOT
-            # greet the user with a modal warning on every launch. Manual
-            # clicks in the Settings page keep the modal.
-            self._update_ytdlp(silent=True)
+        if not self.settings.auto_update_ytdlp:
+            self.settings_page.set_last_update_check(
+                "Auto-update yt-dlp désactivé — vous pouvez l'activer dans « Composants »."
+            )
+            return
+        if "yt-dlp" in self.binaries.missing():
+            # Première install : la FirstRunDialog va s'en occuper, pas la peine
+            # de superposer un check réseau.
+            return
+        # Silent at startup: an offline machine (or GitHub 5xx) must NOT
+        # greet the user with a modal warning on every launch. Manual
+        # clicks in the Settings page keep the modal.
+        self._update_ytdlp(silent=True)
 
     def _check_updates(self, silent: bool) -> None:
         self._update_silent = silent
@@ -507,11 +543,14 @@ class MainWindow(QMainWindow):
     def _ytdlp_updated(self, success: bool, message: str) -> None:
         silent = getattr(self, "_ytdlp_update_silent", False)
         self.settings_page.set_update_enabled(True)
+        when = datetime.now().strftime("%d/%m/%Y %H:%M")
         if success:
             self._refresh_binary_status()
-            self.statusBar().showMessage("yt-dlp mis à jour.", 4000)
+            self.settings_page.set_last_update_check(f"Dernière vérification : {when} — à jour.")
+            self.statusBar().showMessage("yt-dlp mis à jour.", 6000)
         else:
             self.settings_page.set_component_status(message)
+            self.settings_page.set_last_update_check(f"Dernière vérification : {when} — {message}")
             if not silent:
                 self._error(message)
 
