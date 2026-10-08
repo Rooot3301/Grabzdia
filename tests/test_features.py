@@ -407,6 +407,49 @@ def test_sponsorblock_setting_defaults_on_a_legacy_settings_file():
     assert ApplicationSettings.from_dict({"theme": "dark"}).sponsorblock_remove is False
 
 
+# ---- deno / --js-runtimes ------------------------------------------------
+
+def test_js_runtimes_arg_absent_when_deno_not_available():
+    """Sans binaires (ou deno manquant), on n'ajoute pas le flag — yt-dlp
+    continuera à chercher deno sur PATH ou râlera, selon la version."""
+    from app.services.download_service import DownloadRunner
+
+    args = DownloadRunner(_job(), binaries=None).arguments()
+    assert "--js-runtimes" not in args
+
+
+def test_js_runtimes_arg_points_at_the_managed_deno():
+    """Quand BinaryService trouve deno, on force yt-dlp à l'utiliser pour
+    éviter la dépendance au PATH système."""
+    from pathlib import Path
+
+    from app.services.download_service import DownloadRunner
+
+    class _Binaries:
+        def locate(self, name: str) -> Path:
+            if name == "deno":
+                return Path("C:/Grabzdia/bin/deno.exe")
+            raise RuntimeError(name)
+
+    args = DownloadRunner(_job(), binaries=_Binaries()).arguments()
+    assert "--js-runtimes" in args
+    position = args.index("--js-runtimes")
+    assert args[position + 1] == "deno:C:/Grabzdia/bin/deno.exe"
+
+
+def test_js_runtimes_arg_omitted_when_deno_lookup_fails():
+    """Si locate() lève (BinaryNotFoundError ou autre), on ne crashe pas :
+    on omet simplement le flag."""
+    from app.services.download_service import DownloadRunner
+
+    class _Binaries:
+        def locate(self, name: str):
+            raise RuntimeError("not found")
+
+    args = DownloadRunner(_job(), binaries=_Binaries()).arguments()
+    assert "--js-runtimes" not in args
+
+
 def test_built_job_copies_the_sponsorblock_setting(page):
     page.settings.sponsorblock_remove = True
     job = page._build_job("https://example.com/v", "Titre", ".")

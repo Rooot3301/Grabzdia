@@ -57,6 +57,16 @@ class DownloadRunner(QObject):
             "--continue",
             "--part",
         ]
+        # Les versions récentes de yt-dlp délèguent la résolution des URL
+        # YouTube (SABR / EJS) à un runtime JavaScript ; sans ça on tombe
+        # systématiquement sur HTTP 403. On force deno via son chemin
+        # géré par le bootstrap pour ne pas dépendre d'un deno sur PATH.
+        if self.binaries is not None:
+            try:
+                deno = self.binaries.locate("deno")
+                args += ["--js-runtimes", f"deno:{deno}"]
+            except Exception:  # noqa: BLE001 (locate lève BinaryNotFoundError, on tolère tout)
+                pass
         if not self.job.playlist:
             args.append("--no-playlist")
         if self.job.use_archive:

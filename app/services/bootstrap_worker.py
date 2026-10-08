@@ -6,14 +6,19 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, Signal
 
 from app.services.bootstrap_service import (
+    DENO_FALLBACK_URL,
     FFMPEG_ZIP_URL,
     YTDLP_URL,
     Component,
     download_file,
+    extract_deno,
     extract_ffmpeg,
+    fetch_deno_release_info,
+    fetch_deno_sha256,
     fetch_ffmpeg_sha256,
     fetch_ytdlp_sha256,
     latest_ytdlp_version,
+    read_deno_version,
     read_ytdlp_version,
     sha256_of_file,
     verify_executable,
@@ -50,6 +55,8 @@ class BootstrapWorker(QObject):
                     self._install_ytdlp(dest)
                 elif component.key == "ffmpeg":
                     self._install_ffmpeg(dest)
+                elif component.key == "deno":
+                    self._install_deno(dest)
             self.finished.emit(True, "Composants installés avec succès.")
         except Exception as error:  # noqa: BLE001 (surface any failure to the UI)
             self.finished.emit(False, _friendly(error))
@@ -102,6 +109,41 @@ class BootstrapWorker(QObject):
         names = {path.name for path in extracted}
         if not {"ffmpeg.exe", "ffprobe.exe"} <= names:
             raise RuntimeError("L’archive FFmpeg est incomplète.")
+
+    def _install_deno(self, dest: Path) -> None:
+        target = dest / "deno.exe"
+        download_url, sha_url, tag = fetch_deno_release_info()
+        # Skip du download si la version locale correspond déjà au tag
+        # dernier publié (same logique que yt-dlp). Le tag commence par
+        # 'v', on l'enlève pour comparer à `deno --version`.
+        if target.is_file() and tag:
+            local = read_deno_version(target)
+            if local and tag.lstrip("v") == local:
+                self.progress.emit(100)
+                return
+        # Fallback sur l'URL « latest download » GitHub si l'API ne nous a
+        # pas donné d'asset (rate limit, 5xx, format inattendu).
+        archive_url = download_url or DENO_FALLBACK_URL
+        with tempfile.TemporaryDirectory() as temporary:
+            archive = Path(temporary) / "deno.zip"
+            download_file(archive_url, archive, self.progress.emit)
+            # Vérif SHA : si on l'a, on exige la correspondance ; sinon on
+            # continue plutôt que bloquer le premier démarrage offline.
+            expected = fetch_deno_sha256(sha_url) if sha_url else ""
+            if expected:
+                actual = sha256_of_file(archive)
+                if actual != expected:
+                    raise RuntimeError(
+                        "L'archive deno téléchargée ne correspond pas à "
+                        "l'empreinte publiée par denoland (fichier corrompu "
+                        "ou interception réseau)."
+                    )
+            self.component_started.emit("deno (extraction)")
+            extracted = extract_deno(archive, dest)
+        if extracted is None:
+            raise RuntimeError("L'archive deno ne contient pas deno.exe.")
+        if not verify_executable(extracted):
+            raise RuntimeError("deno a été téléchargé mais ne s'exécute pas.")
 
 
 def start_worker(parent: QObject, worker: BootstrapWorker) -> QThread:
