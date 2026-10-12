@@ -15,9 +15,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Official sources.
-YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-YTDLP_SUMS_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS"
-YTDLP_LATEST_API = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
+# Nightly plutôt que stable : yt-dlp lui-même recommande les nightly pour
+# YouTube, qui change tellement souvent qu'une release stable mensuelle
+# (ex. 2026.08.19 encore « à jour » mi-octobre) renvoie des HTTP 403 sur
+# la plupart des vidéos. Le repo nightly publie plusieurs fois par semaine
+# et expose la même structure d'assets (yt-dlp.exe + SHA2-256SUMS).
+YTDLP_URL = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe"
+YTDLP_SUMS_URL = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/SHA2-256SUMS"
+YTDLP_LATEST_API = "https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest"
 # gyan.dev builds are the canonical Windows FFmpeg distribution linked from
 # ffmpeg.org; the "essentials" archive bundles ffmpeg.exe and ffprobe.exe.
 FFMPEG_ZIP_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
