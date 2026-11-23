@@ -2,12 +2,13 @@
 GPU → processeur. Voir conversion_service pour la logique pure."""
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, Signal
 
 from app.parsers.progress_parser import FfmpegProgressReader
 from app.services.binary_service import BinaryService
@@ -80,12 +81,12 @@ class ConversionRunner(QObject):
         self._read_stderr()
         self._release_process()
         if self.cancelled:
-            self.temp.unlink(missing_ok=True)
+            self._remove_temp()
             return
         if code == 0:
             self._finalize()
             return
-        self.temp.unlink(missing_ok=True)
+        self._remove_temp()
         # Un encodeur GPU absent échoue dès l'initialisation, sans progression :
         # on passe au suivant. Après progression, l'échec est réel (disque plein…).
         if self._encoders and not (self._reader and self._reader.seen_progress):
@@ -98,23 +99,39 @@ class ConversionRunner(QObject):
         try:
             final, note = ConversionService.finalize(self.source, self.temp, self.preset)
         except OSError as error:
-            self.temp.unlink(missing_ok=True)
+            self._remove_temp()
             self.failed.emit(FAILED_REASON, str(error))
             return
-        ConversionService.preferred[self.preset] = self._encoder
+        # Seul un encodeur GPU est mémorisé : un repli processeur ponctuel (8K
+        # refusé par le GPU, pilote capricieux) ne doit pas condamner toutes les
+        # conversions suivantes de la session au processeur.
+        if not self._encoder.startswith("lib"):
+            ConversionService.preferred[self.preset] = self._encoder
         if note:
             self.output.emit(note)
         self.finished.emit(str(final), note)
 
     def cancel(self) -> None:
+        """Annulation utilisateur : le fichier temporaire est jeté de toute façon,
+        donc kill() direct (terminate() n'arrête pas ffmpeg sous Windows)."""
         self.cancelled = True
         if self.process and self.process.state() != QProcess.ProcessState.NotRunning:
-            self.process.terminate()
-            QTimer.singleShot(2000, self._kill_if_running)
-
-    def _kill_if_running(self) -> None:
-        if self.process and self.process.state() != QProcess.ProcessState.NotRunning:
             self.process.kill()
+
+    def abort(self) -> None:
+        """Fermeture de l'appli : arrêt synchrone et nettoyage immédiat, car la
+        boucle d'événements ne tournera plus pour appeler _encode_done."""
+        self.cancelled = True
+        if self.process:
+            self.process.kill()
+            self.process.waitForFinished(2000)
+        self._remove_temp()
+
+    def _remove_temp(self) -> None:
+        # Un antivirus peut verrouiller le fichier fraîchement fermé : ne jamais
+        # laisser l'exception bloquer la tâche en « Conversion ».
+        with contextlib.suppress(OSError):
+            self.temp.unlink(missing_ok=True)
 
     # ---- processus -----------------------------------------------------------
     def _launch(self, program: str, args: list[str], on_done: Callable[[int], None]) -> None:

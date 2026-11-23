@@ -182,6 +182,7 @@ class FakeProcess:
     def __init__(self, out: bytes = b"", err: bytes = b"") -> None:
         self.out, self.err = out, err
         self.terminated = False
+        self.killed = False
 
     def readAllStandardOutput(self) -> bytes:  # noqa: N802 (API Qt)
         data, self.out = self.out, b""
@@ -200,7 +201,10 @@ class FakeProcess:
         self.terminated = True
 
     def kill(self) -> None:
-        pass
+        self.killed = True
+
+    def waitForFinished(self, _msecs: int = 0) -> bool:  # noqa: N802 (API Qt)
+        return True
 
     def deleteLater(self) -> None:  # noqa: N802 (API Qt)
         pass
@@ -332,7 +336,7 @@ def test_cancel_removes_temp_and_emits_nothing(conversion):
     temp.write_bytes(b"partial")
     process = runner.process
     runner.cancel()
-    assert process.terminated
+    assert process.killed  # terminate() n'arrête pas ffmpeg sous Windows
     runner._encode_done(1)
     assert not temp.exists() and source.exists()
     assert events["finished"] == [] and events["failed"] == []
@@ -351,7 +355,7 @@ class FakeConverter(QObject):
     def __init__(self, source, preset, binaries, parent=None) -> None:
         super().__init__(parent)
         self.source, self.preset = source, preset
-        self.started = self.cancelled = False
+        self.started = self.cancelled = self.aborted = False
         FakeConverter.instances.append(self)
 
     def start(self) -> None:
@@ -359,6 +363,9 @@ class FakeConverter(QObject):
 
     def cancel(self) -> None:
         self.cancelled = True
+
+    def abort(self) -> None:
+        self.aborted = True
 
 
 @pytest.fixture
@@ -553,3 +560,132 @@ def test_redownload_keeps_conversion(window, monkeypatch):
     monkeypatch.setattr(window.manager, "enqueue", lambda job, start=True: queued.append(job))
     window._redownload({"url": "https://example.com/v", "title": "v", "conversion": "compact"})
     assert queued[0].conversion == "compact"
+
+
+# ---- Revue finale : correctifs ------------------------------------------------
+
+def test_app_shutdown_mid_conversion_keeps_the_job_for_next_launch(chained):
+    # Fermer l'appli pendant une conversion ne doit ni annuler la tâche (elle
+    # serait exclue de la file sauvegardée) ni émettre d'événement.
+    runner, job, events = chained()
+    runner._done(0, DONE)
+    converter = FakeConverter.instances[0]
+    runner.shutdown()
+    assert converter.aborted
+    assert job.status == DownloadStatus.RUNNING and events["failed"] == []
+
+
+def test_manager_shutdown_uses_runner_shutdown():
+    from app.services.download_service import DownloadManager
+
+    class _Runner:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def shutdown(self) -> None:
+            self.calls.append("shutdown")
+
+        def cancel(self) -> None:
+            self.calls.append("cancel")
+
+    manager = DownloadManager(binaries=FakeBinaries())
+    runner = _Runner()
+    manager.runners["x"] = runner
+    manager.shutdown()
+    assert runner.calls == ["shutdown"]
+
+
+def test_conversion_runner_abort_kills_and_removes_temp(conversion):
+    runner, source, _launches, events = conversion
+    _probe(runner, b"300\n")
+    runner.temp.write_bytes(b"partial")
+    process = runner.process
+    runner.abort()
+    assert process.killed and not runner.temp.exists() and source.exists()
+    assert events["failed"] == [] and events["finished"] == []
+
+
+def test_playlist_job_is_not_converted(chained):
+    # Une tâche playlist ne connaît que le dernier fichier téléchargé.
+    runner, job, _events = chained(playlist=True)
+    runner._done(0, DONE)
+    assert FakeConverter.instances == [] and job.status == DownloadStatus.COMPLETED
+
+
+def test_playlist_disables_conversion_in_the_page(page):
+    _select(page, "edit")
+    page.playlist.setChecked(True)
+    assert not page.conversion.isEnabled() and page.format.isEnabled()
+    assert page._build_job("https://example.com/v", "t", ".").conversion == ""
+    page.playlist.setChecked(False)
+    assert page.conversion.isEnabled() and not page.format.isEnabled()
+
+
+def test_playlist_media_disables_conversion(page):
+    from app.models.media_info import MediaInfo
+
+    _select(page, "edit")
+    page.set_media(MediaInfo(media_id="p", title="P", original_url="https://example.com/p", is_playlist=True))
+    assert not page.conversion.isEnabled()
+    assert page._build_job("https://example.com/p", "t", ".").conversion == ""
+
+
+def test_software_success_does_not_pin_the_session_to_cpu(conversion):
+    # Un 8K refusé par le GPU ne doit pas condamner les conversions suivantes
+    # au processeur pour toute la session.
+    runner, _source, _launches, _events = conversion
+    _probe(runner, b"300\n")
+    runner._encoder = "libx264"
+    runner.temp.write_bytes(b"y" * 50)
+    runner._encode_done(0)
+    assert "edit" not in ConversionService.preferred
+
+
+def test_cancel_stops_relaying_stale_progress(chained):
+    from app.models.download_progress import DownloadProgress
+
+    runner, _job, _events = chained()
+    runner._done(0, DONE)
+    relayed: list = []
+    runner.progress.connect(lambda _id, value: relayed.append(value))
+    converter = FakeConverter.instances[0]
+    runner.cancel()
+    converter.progress.emit(DownloadProgress(percent=50.0))
+    assert relayed == []
+
+
+def test_locked_temp_does_not_leave_the_job_stuck(conversion, monkeypatch):
+    from pathlib import Path
+
+    runner, _source, launches, events = conversion
+    _probe(runner, b"300\n")
+    real_unlink = Path.unlink
+
+    def locked(self, missing_ok=False):
+        if self.name.endswith(".converting.mp4"):
+            raise PermissionError("verrouillé par l'antivirus")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", locked)
+    runner._encode_done(1)  # repli malgré le temp verrouillé
+    assert _encoder_of(launches[-1][1]) == "h264_amf"
+    runner._encoders.clear()
+    runner._encode_done(1)
+    assert len(events["failed"]) == 1
+
+
+def test_locked_original_still_counts_as_success(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    source = _write(tmp_path / "v.webm", 100)
+    temp = _write(tmp_path / "v.converting.mp4", 50)
+    real_unlink = Path.unlink
+
+    def locked(self, missing_ok=False):
+        if self.suffix == ".webm":
+            raise PermissionError("verrouillé")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", locked)
+    final, note = ConversionService.finalize(source, temp, "edit")
+    assert final == tmp_path / "v.mp4" and final.is_file() and note

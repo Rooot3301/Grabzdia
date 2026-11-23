@@ -344,6 +344,7 @@ class DownloadPage(QWidget):
         self.download_button.clicked.connect(lambda: self._enqueue(True))
         self.start_queue_button.clicked.connect(self.start_queue_requested)
         self.conversion.currentIndexChanged.connect(self._apply_conversion_lock)
+        self.playlist.toggled.connect(self._apply_conversion_lock)
         self.section_box.toggled.connect(self._section_changed)
         self.playlist.toggled.connect(self._section_changed)
         self.section_start.textChanged.connect(self._section_changed)
@@ -429,11 +430,18 @@ class DownloadPage(QWidget):
         self.format.addItems(["MP3", "M4A", "FLAC", "WAV", "Opus"] if audio else ["MP4", "MKV", "WebM"])
         self._apply_conversion_lock()
 
+    def _playlist_selected(self) -> bool:
+        return self.playlist.isChecked() or bool(self.media and self.media.is_playlist)
+
     def _selected_conversion(self) -> str:
-        """Préréglage de conversion effectif : jamais en mode Audio."""
-        return "" if self._is_audio() else str(self.conversion.currentData() or "")
+        """Préréglage de conversion effectif : jamais en mode Audio ni pour une
+        playlist (une seule tâche pour N fichiers, seul le dernier serait converti)."""
+        if self._is_audio() or self._playlist_selected():
+            return ""
+        return str(self.conversion.currentData() or "")
 
     def _apply_conversion_lock(self, *_args) -> None:
+        self.conversion.setEnabled(not self._playlist_selected())
         # La conversion sort toujours en MP4 : le format est forcé et figé.
         locked = bool(self._selected_conversion())
         if locked:
@@ -584,6 +592,7 @@ class DownloadPage(QWidget):
         self.section_start.setText(format_timecode(0))
         self.section_end.setText(format_timecode(math.ceil(media.duration or 0)))
         self._section_changed()
+        self._apply_conversion_lock()
         self._update_actions()
         self._update_disk_info()
 

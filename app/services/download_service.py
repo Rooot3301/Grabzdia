@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
@@ -193,7 +194,9 @@ class DownloadRunner(QObject):
     # ---- conversion après téléchargement ------------------------------------
     def _conversion_source(self) -> Path | None:
         """Fichier à convertir, ou None si aucune conversion n'est à faire."""
-        if not self.job.conversion or self.job.mode != "video":
+        # Playlist : une seule tâche pour N fichiers, seul le dernier chemin est
+        # connu — on ne convertit pas plutôt que de n'en convertir qu'un.
+        if not self.job.conversion or self.job.mode != "video" or self.job.playlist:
             return None
         found = DiskService.resolve_media_path(self.job.final_path, self.job.destination)
         if not found:
@@ -233,11 +236,31 @@ class DownloadRunner(QObject):
         self.job.error_output = details
         self.failed.emit(self.job.id, reason)
 
+    def _detach_converter(self) -> None:
+        """Coupe le relai du converter : après annulation, ffmpeg peut encore
+        émettre quelques lignes avant de mourir, elles ne doivent plus toucher
+        la tâche (ni une relance qui réutilise le même objet DownloadJob)."""
+        assert self.converter
+        for signal in (self.converter.progress, self.converter.output, self.converter.encoder_chosen,
+                       self.converter.finished, self.converter.failed):
+            with contextlib.suppress(RuntimeError, TypeError):
+                signal.disconnect()
+
+    def shutdown(self) -> None:
+        """Fermeture de l'appli : arrêter sans changer l'état de la tâche, qui
+        reste RUNNING, est sauvegardée et reprendra au prochain lancement."""
+        if self.converter:
+            self._detach_converter()
+            self.converter.abort()
+            return
+        self.cancel()
+
     def cancel(self) -> None:
         if self.converter:
             if self.job.status == DownloadStatus.CANCELLED:
                 return
             self.cancelled = True
+            self._detach_converter()
             self.converter.cancel()
             self.job.phase = ""
             self.job.finished_at = datetime.now(UTC).isoformat()
@@ -337,4 +360,4 @@ class DownloadManager(QObject):
 
     def shutdown(self) -> None:
         for runner in list(self.runners.values()):
-            runner.cancel()
+            runner.shutdown()

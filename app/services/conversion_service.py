@@ -5,6 +5,7 @@ Spec : docs/superpowers/specs/2026-11-23-conversion-montage-design.md
 """
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 from typing import ClassVar
@@ -40,6 +41,7 @@ ENCODER_LABELS: dict[str, str] = {
 }
 
 LARGER_NOTE = "Conversion plus lourde que l’original : original conservé."
+LOCKED_ORIGINAL_NOTE = "Conversion réussie, mais l’original n’a pas pu être supprimé (fichier verrouillé)."
 
 
 class ConversionService:
@@ -96,10 +98,16 @@ class ConversionService:
         seulement si le résultat est plus léger. Renvoie (chemin final, note).
         """
         if preset == "compact" and temp.stat().st_size >= source.stat().st_size:
-            temp.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                temp.unlink(missing_ok=True)
             return source, LARGER_NOTE
         target = ConversionService.target_path(source)
         os.replace(temp, target)
         if source != target:
-            source.unlink(missing_ok=True)
+            try:
+                source.unlink(missing_ok=True)
+            except OSError:
+                # La conversion a réussi : un original verrouillé (antivirus,
+                # lecteur ouvert) ne doit pas la transformer en échec.
+                return target, LOCKED_ORIGINAL_NOTE
         return target, ""
