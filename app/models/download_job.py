@@ -57,6 +57,12 @@ class DownloadJob:
     # fin ≤ début) = média entier. Voir has_section().
     section_start: int = 0
     section_end: int = 0
+    # Conversion après téléchargement : "" (aucune), "edit" (Montage H.264)
+    # ou "compact" (Compacte H.265). `phase` vaut "convert" pendant la
+    # conversion (la tâche reste RUNNING) ; `encoder` = encodeur FFmpeg utilisé.
+    conversion: str = ""
+    phase: str = ""
+    encoder: str = ""
 
     def has_section(self) -> bool:
         return self.section_end > self.section_start >= 0

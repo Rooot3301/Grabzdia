@@ -33,6 +33,7 @@ class ApplicationSettings:
     last_subtitles: bool = False
     last_embed_metadata: bool = True
     last_embed_thumbnail: bool = True
+    last_conversion: str = ""
 
     def __post_init__(self) -> None:
         default = str(default_download_dir())
