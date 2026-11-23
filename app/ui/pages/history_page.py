@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -21,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from app.models.download_job import DownloadStatus
 from app.services.disk_service import DiskService
+from app.services.explorer_service import ExplorerService
 from app.services.history_service import HistoryService
 from app.ui.widgets import MODE_LABELS, STATUS_LABELS, NoWheelComboBox, format_timestamp, page_header
 
@@ -210,11 +209,9 @@ class HistoryPage(QWidget):
             self.redownload_requested.emit(entry)
 
     def open_folder(self, *_args) -> None:
-        item = self.table.item(self.table.currentRow(), 0) if self.table.currentRow() >= 0 else None
-        if item:
-            value = Path(item.data(Qt.ItemDataRole.UserRole))
-            folder = value if value.is_dir() else value.parent
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+        entry = self._current_entry()
+        if entry:
+            ExplorerService.reveal(str(entry.get("final_path") or ""), str(entry.get("destination") or ""))
 
     def clear(self) -> None:
         if self.table.rowCount() == 0:

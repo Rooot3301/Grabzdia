@@ -24,6 +24,7 @@ from app.services.bootstrap_service import COMPONENTS
 from app.services.bootstrap_worker import BootstrapWorker, start_worker
 from app.services.disk_service import DiskService
 from app.services.download_service import DownloadManager
+from app.services.explorer_service import ExplorerService
 from app.services.history_service import HistoryService
 from app.services.metadata_service import MetadataService
 from app.services.notification_service import NotificationService
@@ -352,7 +353,13 @@ class MainWindow(QMainWindow):
         self._player.activateWindow()
 
     def _open_target(self, job_id: str) -> None:
-        target = self.manager.find(job_id).destination if job_id else self.download_page.destination.text()
+        if job_id:
+            job = self.manager.find(job_id)
+            if ExplorerService.reveal(job.final_path, job.destination):
+                return
+            target = job.destination
+        else:
+            target = self.download_page.destination.text()
         try:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(DiskService.validate_destination(target))))
         except Exception as error:
@@ -373,12 +380,7 @@ class MainWindow(QMainWindow):
         self.dashboard_page.refresh()
 
     def _open_history_folder(self, entry: dict) -> None:
-        target = entry.get("final_path") or entry.get("destination") or ""
-        if not target:
-            return
-        path = Path(target)
-        folder = path if path.is_dir() else path.parent
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+        ExplorerService.reveal(str(entry.get("final_path") or ""), str(entry.get("destination") or ""))
 
     def _copy_url_to_clipboard(self, url: str) -> None:
         if not url:
