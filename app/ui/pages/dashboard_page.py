@@ -25,8 +25,20 @@ from PySide6.QtWidgets import (
 from app.models.application_settings import ApplicationSettings
 from app.models.download_job import DownloadStatus
 from app.services.history_service import HistoryService
-from app.ui.widgets import MODE_LABELS, STATUS_LABELS, CircleGauge, eyebrow_label, format_timestamp, load_icon
+from app.ui.widgets import (
+    MODE_LABELS,
+    STATUS_LABELS,
+    CircleGauge,
+    ElidedLabel,
+    eyebrow_label,
+    format_timestamp,
+    load_icon,
+)
 from app.utils.url_host import infer_thumbnail_url, source_label
+
+# Colonne fixe de la pastille d'état dans « Derniers téléchargements » : assez
+# large pour « Téléchargement », le libellé le plus long.
+STATUS_COLUMN_WIDTH = 128
 
 # ---------- Salutation dynamique (dépendance : heure + username) --------------
 
@@ -458,14 +470,16 @@ class DashboardPage(QWidget):
         self._start_thumbnail_fetch(thumb, thumbnail)
         layout.addWidget(thumb)
 
+        # Le titre prend la place restante et se termine par « … » : il ne
+        # pousse plus la pastille et la date, qui ont des colonnes fixes et
+        # restent donc alignées d'une ligne à l'autre.
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
-        title = QLabel(str(entry.get("title", "")) or "(sans titre)")
+        title = ElidedLabel(str(entry.get("title", "")) or "(sans titre)")
         title.setObjectName("recentTitle")
-        title.setWordWrap(False)
         title.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         text_col.addWidget(title)
-        meta = QLabel(self._recent_meta(entry))
+        meta = ElidedLabel(self._recent_meta(entry))
         meta.setObjectName("mutedText")
         text_col.addWidget(meta)
         layout.addLayout(text_col, 1)
@@ -474,10 +488,21 @@ class DashboardPage(QWidget):
         pill = QLabel(status_text)
         pill.setObjectName("statusPill")
         pill.setProperty("state", state)
-        layout.addWidget(pill)
+        pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_col = QWidget()
+        status_col.setObjectName("plainContainer")  # fond transparent (QSS)
+        status_col.setFixedWidth(STATUS_COLUMN_WIDTH)
+        status_layout = QHBoxLayout(status_col)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        # Centrée verticalement : sans alignement, le layout étire la pastille
+        # sur toute la hauteur de la ligne.
+        status_layout.addWidget(pill, 0, Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(status_col)
 
         when = QLabel(format_timestamp(str(entry.get("finished_at", ""))))
-        when.setObjectName("mutedText")
+        when.setObjectName("recentDate")
+        when.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        when.setFixedWidth(when.fontMetrics().horizontalAdvance("00/00/0000 00:00") + 12)
         layout.addWidget(when)
 
         kebab = QToolButton()

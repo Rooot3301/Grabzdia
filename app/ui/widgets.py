@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import QRectF, Qt
+from PySide6.QtCore import QEvent, QRectF, Qt
 from PySide6.QtGui import QColor, QConicalGradient, QFont, QIcon, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QComboBox, QFrame, QLabel, QSpinBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QFrame, QLabel, QSizePolicy, QSpinBox, QVBoxLayout, QWidget
 
 from app.models.download_job import DownloadStatus
 from app.utils.paths import icon_path
@@ -49,6 +49,45 @@ def render_svg(path: str, size: int) -> QPixmap:
     renderer.render(painter)
     painter.end()
     return pixmap
+
+
+class ElidedLabel(QLabel):
+    """QLabel sur une ligne qui termine par « … » au lieu de couper net, avec le
+    texte complet en info-bulle. Il ne réclame aucune largeur : il prend celle
+    que le layout lui laisse, sans pousser les colonnes voisines."""
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._full_text = ""
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setWordWrap(False)
+        self.set_full_text(text)
+
+    def set_full_text(self, text: str) -> None:
+        self._full_text = text
+        self.setToolTip(text)
+        self._elide()
+
+    def full_text(self) -> str:
+        return self._full_text
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (API Qt)
+        super().resizeEvent(event)
+        self._elide()
+
+    def changeEvent(self, event) -> None:  # noqa: N802 (API Qt)
+        super().changeEvent(event)
+        # La feuille de style (taille/graisse de police) peut arriver après coup.
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._elide()
+
+    def _elide(self) -> None:
+        width = self.contentsRect().width()
+        text = self._full_text if width <= 0 else self.fontMetrics().elidedText(
+            self._full_text, Qt.TextElideMode.ElideRight, width
+        )
+        if text != self.text():
+            super().setText(text)
 
 
 class NoWheelComboBox(QComboBox):
