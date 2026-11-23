@@ -16,14 +16,29 @@ def _utf8_environment() -> QProcessEnvironment:
 from app.constants import FINAL_PATH_PREFIX, PROGRESS_PREFIX, SPONSORBLOCK_CATEGORIES
 from app.models.download_job import DownloadJob, DownloadStatus
 from app.parsers.error_parser import diagnose
-from app.parsers.progress_parser import parse_progress
+from app.parsers.progress_parser import parse_ffmpeg_progress, parse_progress
 from app.services.binary_service import BinaryService
 from app.services.format_service import FormatService
 from app.utils.filename import validate_output_template
 from app.utils.paths import archive_path
+from app.utils.timecode import filename_stamp, format_timecode
 from app.utils.url_validator import validate_media_url
 
 TAIL_LINES = 50
+# Extrait : yt-dlp délègue à FFmpeg, qui n'affiche sa progression que si on
+# sort du mode silencieux ; on coupe son en-tête (URL signées, IP) et ses infos
+# de flux pour ne garder que la ligne « time=… speed=… ».
+SECTION_FFMPEG_ARGS = "ffmpeg_i1:-hide_banner -loglevel error -stats"
+_EXT_SUFFIX = ".%(ext)s"
+
+
+def section_output_template(template: str, start: int, end: int) -> str:
+    """Ajoute « [extrait 00h05m00s-00h10m00s] » avant l'extension : sinon
+    l'extrait porte le même nom que la vidéo entière et l'écrase."""
+    position = template.rfind(_EXT_SUFFIX)
+    if position < 0:
+        return template
+    return f"{template[:position]} [extrait {filename_stamp(start, end)}]{template[position:]}"
 
 
 class DownloadRunner(QObject):
@@ -43,6 +58,10 @@ class DownloadRunner(QObject):
     def arguments(self) -> list[str]:
         validate_media_url(self.job.url)
         validate_output_template(self.job.filename_template)
+        section = self.job.has_section()
+        template = self.job.filename_template
+        if section:
+            template = section_output_template(template, self.job.section_start, self.job.section_end)
         args = [
             "--newline",
             "--progress",
@@ -53,10 +72,17 @@ class DownloadRunner(QObject):
             "--paths",
             self.job.destination,
             "--output",
-            self.job.filename_template,
+            template,
             "--continue",
             "--part",
         ]
+        if section:
+            start, end = format_timecode(self.job.section_start), format_timecode(self.job.section_end)
+            args += [
+                "--download-sections", f"*{start}-{end}",
+                "--no-quiet",
+                "--downloader-args", SECTION_FFMPEG_ARGS,
+            ]
         # Les versions récentes de yt-dlp délèguent la résolution des URL
         # YouTube (SABR / EJS) à un runtime JavaScript ; sans ça on tombe
         # systématiquement sur HTTP 403. On force deno via son chemin
@@ -69,9 +95,12 @@ class DownloadRunner(QObject):
                 pass
         if not self.job.playlist:
             args.append("--no-playlist")
-        if self.job.use_archive:
+        # Pour un extrait : pas d'archive (l'id noté bloquerait ensuite le
+        # téléchargement complet) ni de SponsorBlock (segments horodatés sur la
+        # vidéo entière, pas sur l'extrait).
+        if self.job.use_archive and not section:
             args += ["--download-archive", str(archive_path())]
-        if self.job.sponsorblock:
+        if self.job.sponsorblock and not section:
             args += ["--sponsorblock-remove", SPONSORBLOCK_CATEGORIES]
         if self.job.subtitles:
             args.append("--write-subs")
@@ -117,8 +146,12 @@ class DownloadRunner(QObject):
 
     def _read(self) -> None:
         assert self.process
+        section_seconds = self.job.section_length()
         for raw in bytes(self.process.readAllStandardOutput()).decode("utf-8", "replace").splitlines():
             parsed = parse_progress(raw)
+            if parsed is None and section_seconds:
+                # Stats FFmpeg (~2/s) : progression seulement, jamais dans les logs.
+                parsed = parse_ffmpeg_progress(raw, section_seconds)
             if parsed:
                 if parsed.final_path:
                     self.job.final_path = parsed.final_path

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
@@ -29,6 +31,7 @@ from app.ui.download_item_widget import DownloadItemWidget
 from app.ui.log_panel import LogPanel
 from app.ui.widgets import NoWheelComboBox, eyebrow_label, page_header
 from app.utils.filename import sanitize_filename, validate_output_template
+from app.utils.timecode import format_timecode, parse_timecode
 from app.utils.url_validator import validate_media_url
 
 CODEC_MAP = {"Automatique": "auto", "H.264": "h264", "VP9": "vp9", "AV1": "av1"}
@@ -220,7 +223,35 @@ class DownloadPage(QWidget):
             checks.addWidget(widget)
         checks.addStretch()
         layout.addLayout(checks)
+        layout.addLayout(self._section_row())
         return card
+
+    def _section_row(self) -> QHBoxLayout:
+        """« Extrait uniquement de [hh:mm:ss] à [hh:mm:ss] » : ne télécharger
+        qu'un passage d'un long média (VOD de plusieurs heures)."""
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self.section_box = QCheckBox("Extrait uniquement")
+        self.section_box.setToolTip(
+            "Télécharge seulement le passage choisi. Coupe sur les images clés : "
+            "quelques secondes d’écart possibles aux bornes."
+        )
+        self.section_start = QLineEdit("00:00:00")
+        self.section_end = QLineEdit()
+        for field in (self.section_start, self.section_end):
+            field.setPlaceholderText("hh:mm:ss")
+            field.setFixedWidth(96)
+        self.section_hint = QLabel("")
+        self.section_hint.setObjectName("mutedText")
+        row.addWidget(self.section_box)
+        row.addWidget(QLabel("de"))
+        row.addWidget(self.section_start)
+        row.addWidget(QLabel("à"))
+        row.addWidget(self.section_end)
+        row.addSpacing(6)
+        row.addWidget(self.section_hint)
+        row.addStretch()
+        return row
 
     def _destination_card(self) -> QFrame:
         card = QFrame()
@@ -301,6 +332,67 @@ class DownloadPage(QWidget):
         self.queue_button.clicked.connect(lambda: self._enqueue(False))
         self.download_button.clicked.connect(lambda: self._enqueue(True))
         self.start_queue_button.clicked.connect(self.start_queue_requested)
+        self.section_box.toggled.connect(self._section_changed)
+        self.playlist.toggled.connect(self._section_changed)
+        self.section_start.textChanged.connect(self._section_changed)
+        self.section_end.textChanged.connect(self._section_changed)
+        self._section_changed()
+
+    # ---- extrait (plage de temps) -----------------------------------------
+    def _section_available(self) -> bool:
+        media = self.media
+        return bool(media and not media.is_playlist and not self.playlist.isChecked() and (media.duration or 0) > 0)
+
+    def _section_changed(self, *_args) -> None:
+        available = self._section_available()
+        if not available and self.section_box.isChecked():
+            self.section_box.setChecked(False)  # ré-entre ici via toggled
+            return
+        self.section_box.setEnabled(available)
+        active = available and self.section_box.isChecked()
+        self.section_start.setEnabled(active)
+        self.section_end.setEnabled(active)
+        hint = ""
+        if active:
+            try:
+                section = self._section_range()
+                hint = f"Durée de l’extrait : {format_timecode(section[1] - section[0])}" if section else "Média entier"
+            except ValueError as error:
+                hint = f"⚠  {error}"
+        self.section_hint.setText(hint)
+        self._update_disk_info()
+
+    def _section_range(self) -> tuple[int, int] | None:
+        """(début, fin) en secondes, None pour le média entier.
+
+        Lève ValueError avec un message affichable si la saisie est invalide.
+        """
+        if not (self._section_available() and self.section_box.isChecked()):
+            return None
+        start = parse_timecode(self.section_start.text())
+        end = parse_timecode(self.section_end.text())
+        duration = self.media.duration or 0  # _section_available garantit > 0
+        if start >= end:
+            raise ValueError("Le début de l’extrait doit précéder la fin.")
+        if end > math.ceil(duration):
+            raise ValueError(f"La fin dépasse la durée du média ({format_timecode(math.ceil(duration))}).")
+        if start == 0 and end >= duration:
+            return None
+        return start, end
+
+    def _effective_estimate(self) -> int | float | None:
+        """Taille estimée du média, proratisée sur l'extrait choisi — sinon une
+        VOD de 100 Go bloquerait le contrôle d'espace pour 10 minutes."""
+        estimated = self.media.estimated_size if self.media else None
+        if not estimated:
+            return estimated
+        try:
+            section = self._section_range()
+        except ValueError:
+            return estimated
+        if not section or not self.media.duration:
+            return estimated
+        return estimated * (section[1] - section[0]) / self.media.duration
 
     def _is_audio(self) -> bool:
         return self.mode_audio.isChecked()
@@ -360,8 +452,9 @@ class DownloadPage(QWidget):
             self.error.emit("Analysez d’abord une URL.")
             return
         try:
+            section = self._section_range()
             validate_output_template(self.settings.filename_template)
-            base = DiskService.validate_destination(self.destination.text(), self.media.estimated_size)
+            base = DiskService.validate_destination(self.destination.text(), self._effective_estimate())
             playlist_name = sanitize_filename(self.media.title) if self.media.is_playlist else ""
             media_type = "audio" if self._is_audio() else "video"
             destination = str(DiskService.organized_destination(base, self.settings.organize_mode, media_type, playlist_name))
@@ -370,6 +463,8 @@ class DownloadPage(QWidget):
             return
         self._remember_options()
         job = self._build_job(self.media.original_url, self.media.title, destination)
+        if section:
+            job.section_start, job.section_end = section
         self.job_ready.emit(job, start)
 
     def _open_batch(self) -> None:
@@ -454,6 +549,11 @@ class DownloadPage(QWidget):
         if media.platform:
             self.platform_pill.setText(media.platform)
             self.platform_pill.setVisible(True)
+        # Nouvelle analyse : on repart du média entier, case décochée.
+        self.section_box.setChecked(False)
+        self.section_start.setText(format_timecode(0))
+        self.section_end.setText(format_timecode(math.ceil(media.duration or 0)))
+        self._section_changed()
         self._update_actions()
         self._update_disk_info()
 
@@ -504,7 +604,7 @@ class DownloadPage(QWidget):
 
     def _update_disk_info(self, *_args) -> None:
         free = DiskService.free_space(self.destination.text())
-        estimated = self.media.estimated_size if self.media else None
+        estimated = self._effective_estimate()
         free_text = DiskService.human_size(free)
         text = (
             f"Espace libre : {free_text}  ·  Taille estimée : ~{DiskService.human_size(estimated)}"

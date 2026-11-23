@@ -53,6 +53,16 @@ class DownloadJob:
     # les métadonnées du média (ce qui peut échouer si la vidéo a été
     # supprimée entre-temps).
     thumbnail_url: str = ""
+    # Extrait à télécharger, en secondes depuis le début du média. 0/0 (ou
+    # fin ≤ début) = média entier. Voir has_section().
+    section_start: int = 0
+    section_end: int = 0
+
+    def has_section(self) -> bool:
+        return self.section_end > self.section_start >= 0
+
+    def section_length(self) -> int:
+        return self.section_end - self.section_start if self.has_section() else 0
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)

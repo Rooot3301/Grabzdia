@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushBu
 from app.models.download_job import DownloadJob, DownloadStatus
 from app.services.disk_service import DiskService
 from app.ui.widgets import STATUS_LABELS
+from app.utils.timecode import format_timecode
 
 
 class DownloadItemWidget(QFrame):
@@ -66,6 +67,8 @@ class DownloadItemWidget(QFrame):
         self.bar.setValue(round(job.progress))
         transfer = " · ".join(value for value in (job.downloaded, job.total, job.speed, f"ETA {job.eta}" if job.eta else "") if value)
         details = f"{job.mode.upper()} · {job.quality} · {job.output_format.upper()}"
+        if job.has_section():
+            details += f" · Extrait {format_timecode(job.section_start)} → {format_timecode(job.section_end)}"
         self.details.setText(details + (f"   {transfer}" if transfer else "") + (f" — {job.error}" if job.error else ""))
         self.cancel.setVisible(job.status == DownloadStatus.RUNNING)
         self.retry.setVisible(job.status in {DownloadStatus.FAILED, DownloadStatus.CANCELLED})
