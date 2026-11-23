@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from datetime import UTC, datetime
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
@@ -15,9 +16,12 @@ def _utf8_environment() -> QProcessEnvironment:
 
 from app.constants import FINAL_PATH_PREFIX, PROGRESS_PREFIX, SPONSORBLOCK_CATEGORIES
 from app.models.download_job import DownloadJob, DownloadStatus
+from app.models.download_progress import DownloadProgress
 from app.parsers.error_parser import diagnose
 from app.parsers.progress_parser import parse_ffmpeg_progress, parse_progress
 from app.services.binary_service import BinaryService
+from app.services.conversion_runner import ConversionRunner
+from app.services.disk_service import DiskService
 from app.services.format_service import FormatService
 from app.utils.filename import validate_output_template
 from app.utils.paths import archive_path
@@ -53,6 +57,7 @@ class DownloadRunner(QObject):
         self.binaries = binaries
         self.process: QProcess | None = None
         self.cancelled = False
+        self.converter: ConversionRunner | None = None
         self.tail: deque[str] = deque(maxlen=TAIL_LINES)
 
     def arguments(self) -> list[str]:
@@ -127,6 +132,8 @@ class DownloadRunner(QObject):
         return args
 
     def start(self) -> None:
+        self.job.phase = ""
+        self.job.encoder = ""
         try:
             program = str(self.binaries.locate("yt-dlp"))
             arguments = self.arguments()
@@ -161,6 +168,14 @@ class DownloadRunner(QObject):
                 self.output.emit(raw)
 
     def _done(self, code: int, _status: QProcess.ExitStatus) -> None:
+        if self.process:
+            self.process.deleteLater()
+            self.process = None
+        if code == 0 and not self.cancelled:
+            source = self._conversion_source()
+            if source:
+                self._start_conversion(source)
+                return
         self.job.finished_at = datetime.now(UTC).isoformat()
         if self.cancelled:
             self.job.status = DownloadStatus.CANCELLED
@@ -174,11 +189,61 @@ class DownloadRunner(QObject):
             self.job.error_hint = diagnosis.hint
             self.job.error_output = diagnosis.raw
             self.failed.emit(self.job.id, diagnosis.reason)
-        if self.process:
-            self.process.deleteLater()
-            self.process = None
+
+    # ---- conversion après téléchargement ------------------------------------
+    def _conversion_source(self) -> Path | None:
+        """Fichier à convertir, ou None si aucune conversion n'est à faire."""
+        if not self.job.conversion or self.job.mode != "video":
+            return None
+        found = DiskService.resolve_media_path(self.job.final_path, self.job.destination)
+        if not found:
+            self.output.emit("Fichier téléchargé introuvable : conversion ignorée.")
+            return None
+        return Path(found)
+
+    def _start_conversion(self, source: Path) -> None:
+        job = self.job
+        job.phase = "convert"
+        job.progress = 0.0
+        job.speed = job.eta = job.downloaded = job.total = ""
+        self.progress.emit(job.id, DownloadProgress())
+        self.converter = ConversionRunner(source, job.conversion, self.binaries, self)
+        self.converter.progress.connect(lambda value: self.progress.emit(job.id, value))
+        self.converter.output.connect(self.output)
+        self.converter.encoder_chosen.connect(lambda encoder: setattr(job, "encoder", encoder))
+        self.converter.finished.connect(self._conversion_finished)
+        self.converter.failed.connect(self._conversion_failed)
+        self.converter.start()
+
+    def _conversion_finished(self, final_path: str, _note: str) -> None:
+        self.job.final_path = final_path
+        self.job.phase = ""
+        self.job.progress = 100.0
+        self.job.finished_at = datetime.now(UTC).isoformat()
+        self.job.status = DownloadStatus.COMPLETED
+        self.finished.emit(self.job.id)
+
+    def _conversion_failed(self, reason: str, details: str) -> None:
+        self.job.phase = ""
+        self.job.finished_at = datetime.now(UTC).isoformat()
+        self.job.status = DownloadStatus.FAILED
+        self.job.error_hint = (
+            "Le fichier téléchargé est intact. Relancez, ou choisissez « Aucune » conversion."
+        )
+        self.job.error_output = details
+        self.failed.emit(self.job.id, reason)
 
     def cancel(self) -> None:
+        if self.converter:
+            if self.job.status == DownloadStatus.CANCELLED:
+                return
+            self.cancelled = True
+            self.converter.cancel()
+            self.job.phase = ""
+            self.job.finished_at = datetime.now(UTC).isoformat()
+            self.job.status = DownloadStatus.CANCELLED
+            self.failed.emit(self.job.id, "Téléchargement annulé.")
+            return
         if not self.process:
             return
         self.cancelled = True

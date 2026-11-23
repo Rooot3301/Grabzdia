@@ -3,11 +3,13 @@ Spec : docs/superpowers/specs/2026-11-23-conversion-montage-design.md"""
 from __future__ import annotations
 
 import pytest
+from PySide6.QtCore import QObject, QProcess, Signal
 
 from app.models.application_settings import ApplicationSettings
-from app.models.download_job import DownloadJob
+from app.models.download_job import DownloadJob, DownloadStatus
 from app.parsers.progress_parser import FfmpegProgressReader
 from app.services.conversion_service import ConversionService
+from app.services.download_service import DownloadRunner
 
 
 def _job(**overrides) -> DownloadJob:
@@ -334,3 +336,132 @@ def test_cancel_removes_temp_and_emits_nothing(conversion):
     runner._encode_done(1)
     assert not temp.exists() and source.exists()
     assert events["finished"] == [] and events["failed"] == []
+
+
+# ---- Task 4 : enchaînement dans DownloadRunner -----------------------------------
+
+class FakeConverter(QObject):
+    progress = Signal(object)
+    encoder_chosen = Signal(str)
+    finished = Signal(str, str)
+    failed = Signal(str, str)
+    output = Signal(str)
+    instances: list[FakeConverter] = []
+
+    def __init__(self, source, preset, binaries, parent=None) -> None:
+        super().__init__(parent)
+        self.source, self.preset = source, preset
+        self.started = self.cancelled = False
+        FakeConverter.instances.append(self)
+
+    def start(self) -> None:
+        self.started = True
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+
+@pytest.fixture
+def chained(qtbot, tmp_path, monkeypatch):
+    FakeConverter.instances.clear()
+    monkeypatch.setattr("app.services.download_service.ConversionRunner", FakeConverter)
+    media = tmp_path / "v.webm"
+    media.write_bytes(b"x")
+
+    def make(**overrides):
+        job = _job(**{"conversion": "edit", "final_path": str(media), "destination": str(tmp_path), **overrides})
+        job.status = DownloadStatus.RUNNING
+        runner = DownloadRunner(job, binaries=FakeBinaries())
+        events = {"finished": [], "failed": []}
+        runner.finished.connect(events["finished"].append)
+        runner.failed.connect(lambda _id, message: events["failed"].append(message))
+        return runner, job, events
+
+    return make
+
+
+DONE = QProcess.ExitStatus.NormalExit
+
+
+def test_download_without_conversion_finishes_as_before(chained):
+    runner, job, events = chained(conversion="")
+    runner._done(0, DONE)
+    assert job.status == DownloadStatus.COMPLETED and len(events["finished"]) == 1
+    assert FakeConverter.instances == []
+
+
+def test_successful_download_starts_conversion(chained):
+    runner, job, events = chained()
+    job.progress = 100.0
+    runner._done(0, DONE)
+    [converter] = FakeConverter.instances
+    assert converter.started and converter.preset == "edit"
+    assert job.phase == "convert" and job.progress == 0.0
+    assert job.status == DownloadStatus.RUNNING
+    assert events["finished"] == []
+
+
+def test_audio_job_is_never_converted(chained):
+    runner, job, events = chained(mode="audio", output_format="mp3")
+    runner._done(0, DONE)
+    assert FakeConverter.instances == [] and job.status == DownloadStatus.COMPLETED
+
+
+def test_missing_file_skips_conversion(chained, tmp_path):
+    runner, job, events = chained(final_path=str(tmp_path / "absent.webm"))
+    runner._done(0, DONE)
+    assert FakeConverter.instances == [] and job.status == DownloadStatus.COMPLETED
+
+
+def test_conversion_success_completes_with_new_path(chained):
+    runner, job, events = chained()
+    runner._done(0, DONE)
+    FakeConverter.instances[0].finished.emit("x.mp4", "")
+    assert job.final_path == "x.mp4" and job.phase == ""
+    assert job.status == DownloadStatus.COMPLETED and len(events["finished"]) == 1
+
+
+def test_conversion_failure_fails_the_job(chained):
+    runner, job, events = chained()
+    runner._done(0, DONE)
+    FakeConverter.instances[0].failed.emit("Conversion impossible.", "No space left on device")
+    assert job.status == DownloadStatus.FAILED and job.phase == ""
+    assert events["failed"] == ["Conversion impossible."]
+    assert "No space left" in job.error_output and job.error_hint
+
+
+def test_cancel_during_conversion(chained):
+    runner, job, events = chained()
+    runner._done(0, DONE)
+    runner.cancel()
+    runner.cancel()  # double clic : un seul événement
+    assert FakeConverter.instances[0].cancelled
+    assert job.status == DownloadStatus.CANCELLED
+    assert events["failed"] == ["Téléchargement annulé."]
+
+
+def test_cancel_during_probe_does_not_crash(tmp_path):
+    from app.services.conversion_runner import ConversionRunner
+
+    source = tmp_path / "v.webm"
+    source.write_bytes(b"x")
+    runner = ConversionRunner(source, "edit", FakeBinaries())
+    runner.cancel()  # aucun processus encore
+    runner._probe_done(0)  # la fin de ffprobe arrive après l'annulation
+    assert runner.process is None and runner._encoder == ""
+
+
+def test_encoder_chosen_is_recorded(chained):
+    runner, job, _events = chained()
+    runner._done(0, DONE)
+    FakeConverter.instances[0].encoder_chosen.emit("hevc_amf")
+    assert job.encoder == "hevc_amf"
+
+
+def test_start_resets_phase(chained, monkeypatch):
+    runner, job, _events = chained()
+    job.phase, job.encoder = "convert", "h264_nvenc"
+    monkeypatch.setattr(QProcess, "start", lambda self: None)
+    runner.binaries = type("B", (), {"locate": lambda self, name: f"{name}.exe"})()
+    runner.start()
+    assert (job.phase, job.encoder) == ("", "")
