@@ -54,3 +54,41 @@ def _format_eta(seconds: float) -> str:
     hours, rest = divmod(round(seconds), 3600)
     minutes, secs = divmod(rest, 60)
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes:02d}:{secs:02d}"
+
+
+class FfmpegProgressReader:
+    """Lit la sortie `-progress pipe:1` de FFmpeg (blocs « clé=valeur » terminés
+    par `progress=continue|end`) et en tire une progression par bloc."""
+
+    def __init__(self, duration: float) -> None:
+        self.duration = duration
+        self.seen_progress = False
+        self._elapsed = 0.0
+        self._speed = 0.0
+
+    def feed(self, line: str) -> DownloadProgress | None:
+        key, _, value = line.strip().partition("=")
+        value = value.strip()
+        if key == "out_time_us":
+            if value.isdigit():
+                self._elapsed = int(value) / 1_000_000
+                self.seen_progress = self.seen_progress or self._elapsed > 0
+            return None
+        if key == "speed":
+            try:
+                self._speed = float(value.rstrip("x"))
+            except ValueError:
+                self._speed = 0.0
+            return None
+        if key != "progress":
+            return None
+        if value == "end":
+            percent = 100.0
+        elif self.duration > 0:
+            percent = max(0.0, min(100.0, self._elapsed / self.duration * 100))
+        else:
+            percent = 0.0
+        eta = ""
+        if self._speed > 0 and self.duration > 0:
+            eta = _format_eta(max(0.0, self.duration - self._elapsed) / self._speed)
+        return DownloadProgress(percent=percent, speed=f"{self._speed:g}×" if self._speed > 0 else "", eta=eta)
