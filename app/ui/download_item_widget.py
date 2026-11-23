@@ -4,6 +4,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from app.models.download_job import DownloadJob, DownloadStatus
+from app.services.conversion_service import ENCODER_LABELS, PRESET_LABELS
 from app.services.disk_service import DiskService
 from app.ui.widgets import STATUS_LABELS
 from app.utils.timecode import format_timecode
@@ -60,7 +61,8 @@ class DownloadItemWidget(QFrame):
 
     def update_job(self, job: DownloadJob) -> None:
         self.title.setText(job.title)
-        self.status.setText(STATUS_LABELS[job.status])
+        converting = job.status == DownloadStatus.RUNNING and job.phase == "convert"
+        self.status.setText("Conversion" if converting else STATUS_LABELS[job.status])
         self.status.setProperty("state", job.status.value)
         self.status.style().unpolish(self.status)
         self.status.style().polish(self.status)
@@ -69,6 +71,10 @@ class DownloadItemWidget(QFrame):
         details = f"{job.mode.upper()} · {job.quality} · {job.output_format.upper()}"
         if job.has_section():
             details += f" · Extrait {format_timecode(job.section_start)} → {format_timecode(job.section_end)}"
+        if job.conversion in PRESET_LABELS and job.conversion:
+            details += f" · {PRESET_LABELS[job.conversion]}"
+            if job.encoder in ENCODER_LABELS:
+                details += f" · {ENCODER_LABELS[job.encoder]}"
         self.details.setText(details + (f"   {transfer}" if transfer else "") + (f" — {job.error}" if job.error else ""))
         self.cancel.setVisible(job.status == DownloadStatus.RUNNING)
         self.retry.setVisible(job.status in {DownloadStatus.FAILED, DownloadStatus.CANCELLED})

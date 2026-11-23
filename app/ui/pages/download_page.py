@@ -25,6 +25,7 @@ from app.constants import SUPPORTED_SITES_URL
 from app.models.application_settings import ApplicationSettings
 from app.models.download_job import DownloadJob
 from app.models.media_info import MediaInfo
+from app.services.conversion_service import PRESET_LABELS
 from app.services.disk_service import DiskService
 from app.ui.batch_dialog import BatchDialog
 from app.ui.download_item_widget import DownloadItemWidget
@@ -204,10 +205,20 @@ class DownloadPage(QWidget):
         self.bitrate.setCurrentText("320 kb/s")
         form.addRow("Qualité", self.quality)
         form.addRow("Format", self.format)
+        self.conversion = NoWheelComboBox()
+        for value, label in PRESET_LABELS.items():
+            self.conversion.addItem(label, value)
+        self.conversion.setToolTip(
+            "Sortie MP4. Montage : H.264 à cadence fixe et audio AAC, s’importe partout. "
+            "Compacte : H.265, environ deux fois plus léger. Carte graphique utilisée si "
+            "possible ; sinon comptez à peu près la durée de la vidéo en 1080p."
+        )
         form.addRow("Codec préféré", self.codec)
+        form.addRow("Conversion", self.conversion)
         form.addRow("Qualité audio", self.bitrate)
         self._quality_label = form.labelForField(self.quality)
         self._codec_label = form.labelForField(self.codec)
+        self._conversion_label = form.labelForField(self.conversion)
         self._bitrate_label = form.labelForField(self.bitrate)
         layout.addLayout(form)
 
@@ -332,6 +343,7 @@ class DownloadPage(QWidget):
         self.queue_button.clicked.connect(lambda: self._enqueue(False))
         self.download_button.clicked.connect(lambda: self._enqueue(True))
         self.start_queue_button.clicked.connect(self.start_queue_requested)
+        self.conversion.currentIndexChanged.connect(self._apply_conversion_lock)
         self.section_box.toggled.connect(self._section_changed)
         self.playlist.toggled.connect(self._section_changed)
         self.section_start.textChanged.connect(self._section_changed)
@@ -405,6 +417,7 @@ class DownloadPage(QWidget):
         for widget, label in (
             (self.quality, self._quality_label),
             (self.codec, self._codec_label),
+            (self.conversion, self._conversion_label),
         ):
             widget.setVisible(not audio)
             if label:
@@ -414,6 +427,18 @@ class DownloadPage(QWidget):
             self._bitrate_label.setVisible(audio)
         self.format.clear()
         self.format.addItems(["MP3", "M4A", "FLAC", "WAV", "Opus"] if audio else ["MP4", "MKV", "WebM"])
+        self._apply_conversion_lock()
+
+    def _selected_conversion(self) -> str:
+        """Préréglage de conversion effectif : jamais en mode Audio."""
+        return "" if self._is_audio() else str(self.conversion.currentData() or "")
+
+    def _apply_conversion_lock(self, *_args) -> None:
+        # La conversion sort toujours en MP4 : le format est forcé et figé.
+        locked = bool(self._selected_conversion())
+        if locked:
+            self.format.setCurrentText("MP4")
+        self.format.setEnabled(not locked)
 
     def _browse(self) -> None:
         value = QFileDialog.getExistingDirectory(self, "Choisir le dossier de destination", self.destination.text())
@@ -445,6 +470,7 @@ class DownloadPage(QWidget):
             use_archive=self.settings.use_download_archive,
             sponsorblock=self.settings.sponsorblock_remove,
             thumbnail_url=thumbnail,
+            conversion=self._selected_conversion(),
         )
 
     def _enqueue(self, start: bool) -> None:
@@ -515,6 +541,9 @@ class DownloadPage(QWidget):
         self.subtitles.setChecked(settings.last_subtitles)
         self.metadata_box.setChecked(settings.last_embed_metadata)
         self.thumbnail_box.setChecked(settings.last_embed_thumbnail)
+        index = self.conversion.findData(settings.last_conversion)
+        self.conversion.setCurrentIndex(max(0, index))
+        self._apply_conversion_lock()
 
     def _remember_options(self) -> None:
         settings = self.settings
@@ -530,6 +559,7 @@ class DownloadPage(QWidget):
         settings.last_subtitles = self.subtitles.isChecked()
         settings.last_embed_metadata = self.metadata_box.isChecked()
         settings.last_embed_thumbnail = self.thumbnail_box.isChecked()
+        settings.last_conversion = str(self.conversion.currentData() or "")
         self.options_remembered.emit()
 
     # ---- public API used by the window ------------------------------------

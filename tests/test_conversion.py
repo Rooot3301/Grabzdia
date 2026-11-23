@@ -465,3 +465,91 @@ def test_start_resets_phase(chained, monkeypatch):
     runner.binaries = type("B", (), {"locate": lambda self, name: f"{name}.exe"})()
     runner.start()
     assert (job.phase, job.encoder) == ("", "")
+
+
+# ---- Task 5 : interface -------------------------------------------------------
+
+@pytest.fixture
+def page(qtbot, tmp_path):
+    from app.ui.pages import DownloadPage
+
+    settings = ApplicationSettings()
+    settings.default_download_directory = str(tmp_path)
+    settings.last_download_directory = str(tmp_path)
+    widget = DownloadPage(settings)
+    qtbot.addWidget(widget)
+    return widget
+
+
+def _select(page, value: str) -> None:
+    page.conversion.setCurrentIndex(page.conversion.findData(value))
+
+
+def test_conversion_menu_lists_the_presets(page):
+    labels = [page.conversion.itemText(i) for i in range(page.conversion.count())]
+    assert labels == ["Aucune", "Montage (H.264)", "Compacte (H.265)"]
+    assert page.conversion.currentData() == ""
+
+
+def test_conversion_hidden_in_audio_mode(page):
+    page.mode_audio.setChecked(True)
+    assert page.conversion.isHidden() and page._conversion_label.isHidden()
+    page.mode_video.setChecked(True)
+    assert not page.conversion.isHidden()
+
+
+def test_choosing_a_conversion_locks_format_to_mp4(page):
+    page.format.setCurrentText("WebM")
+    _select(page, "edit")
+    assert page.format.currentText() == "MP4" and not page.format.isEnabled()
+    page.mode_audio.setChecked(True)
+    assert page.format.isEnabled()  # formats audio libres
+    page.mode_video.setChecked(True)
+    assert page.format.currentText() == "MP4" and not page.format.isEnabled()
+    _select(page, "")
+    assert page.format.isEnabled()
+
+
+def test_built_job_carries_conversion(page):
+    _select(page, "edit")
+    assert page._build_job("https://example.com/v", "t", ".").conversion == "edit"
+
+
+def test_audio_job_never_converts(page):
+    _select(page, "compact")
+    page.mode_audio.setChecked(True)
+    assert page._build_job("https://example.com/v", "t", ".").conversion == ""
+
+
+def test_conversion_is_remembered(qtbot, page):
+    from app.ui.pages import DownloadPage
+
+    _select(page, "compact")
+    page._remember_options()
+    assert page.settings.last_conversion == "compact"
+    restored = DownloadPage(page.settings)
+    qtbot.addWidget(restored)
+    assert restored.conversion.currentData() == "compact"
+    assert restored.format.currentText() == "MP4" and not restored.format.isEnabled()
+
+
+def test_item_shows_conversion_phase(qtbot):
+    from app.ui.download_item_widget import DownloadItemWidget
+
+    job = _job(conversion="edit", phase="convert", encoder="h264_nvenc")
+    job.status = DownloadStatus.RUNNING
+    item = DownloadItemWidget(job)
+    qtbot.addWidget(item)
+    assert item.status.text() == "Conversion"
+    assert "Montage (H.264) · GPU NVIDIA" in item.details.text()
+    job.encoder, job.phase = "", ""
+    item.update_job(job)
+    assert item.status.text() == "Téléchargement"
+    assert "Montage (H.264)" in item.details.text() and "GPU" not in item.details.text()
+
+
+def test_redownload_keeps_conversion(window, monkeypatch):
+    queued: list = []
+    monkeypatch.setattr(window.manager, "enqueue", lambda job, start=True: queued.append(job))
+    window._redownload({"url": "https://example.com/v", "title": "v", "conversion": "compact"})
+    assert queued[0].conversion == "compact"

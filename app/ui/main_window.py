@@ -287,6 +287,7 @@ class MainWindow(QMainWindow):
             thumbnail_url=str(entry.get("thumbnail_url", "")),
             section_start=int(entry.get("section_start") or 0),
             section_end=int(entry.get("section_end") or 0),
+            conversion=str(entry.get("conversion") or ""),
         )
         self.manager.enqueue(job, True)
         self._persist_queue()
