@@ -24,6 +24,9 @@ class MediaInfo:
     platform: str = ""
     author: str = ""
     thumbnail_url: str = ""
+    # URL http(s) de miniature à essayer dans l'ordre : la variante désignée par
+    # yt-dlp peut répondre 404 (ex. miniatures localisées YouTube `vi_lc/…`).
+    thumbnail_candidates: list[str] = field(default_factory=list)
     duration: float | None = None
     upload_date: str = ""
     view_count: int | None = None

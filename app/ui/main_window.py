@@ -79,6 +79,7 @@ class MainWindow(QMainWindow):
         self.metadata = MetadataService(self.binaries, self)
         self.manager = DownloadManager(self.binaries, self.settings.parallel_downloads, self)
         self.network = QNetworkAccessManager(self)
+        self._thumbnail_generation = 0
         self.notifications = NotificationService(self._icon(), self)
         self.notifications.enabled = self.settings.notifications
 
@@ -224,17 +225,38 @@ class MainWindow(QMainWindow):
     # ---- metadata / thumbnail ---------------------------------------------
     def _metadata_ready(self, media: MediaInfo) -> None:
         self.download_page.set_media(media)
+        # Chaque analyse invalide les réponses de miniature encore en vol.
+        self._thumbnail_generation += 1
         # The thumbnail URL comes from external metadata: only fetch over http(s)
         # (never file://, data:, or other schemes).
-        if QUrl(media.thumbnail_url).scheme().lower() in ("http", "https"):
-            reply = self.network.get(QNetworkRequest(QUrl(media.thumbnail_url)))
-            reply.finished.connect(lambda r=reply: self._thumbnail_ready(r))
+        candidates = [
+            url for url in (media.thumbnail_candidates or [media.thumbnail_url])
+            if QUrl(url).scheme().lower() in ("http", "https")
+        ]
+        self._fetch_thumbnail(media, candidates, self._thumbnail_generation)
 
-    def _thumbnail_ready(self, reply: QNetworkReply) -> None:
-        pixmap = QPixmap()
-        if pixmap.loadFromData(reply.readAll()):
-            self.download_page.set_thumbnail(pixmap)
+    def _fetch_thumbnail(self, media: MediaInfo, candidates: list[str], generation: int) -> None:
+        if not candidates:
+            return
+        url, rest = candidates[0], candidates[1:]
+        self._request_thumbnail(url, lambda reply: self._thumbnail_ready(reply, media, url, rest, generation))
+
+    def _request_thumbnail(self, url: str, on_done) -> None:
+        reply = self.network.get(QNetworkRequest(QUrl(url)))
+        reply.finished.connect(lambda r=reply: on_done(r))
+
+    def _thumbnail_ready(self, reply: QNetworkReply, media: MediaInfo, url: str, rest: list[str], generation: int) -> None:
+        data = reply.readAll()
         reply.deleteLater()
+        if generation != self._thumbnail_generation:
+            return  # réponse d'une analyse précédente
+        pixmap = QPixmap()
+        if pixmap.loadFromData(data) and not pixmap.isNull():
+            # L'URL qui marche est retenue : le job (historique, Accueil) la reprend.
+            media.thumbnail_url = url
+            self.download_page.set_thumbnail(pixmap)
+        else:
+            self._fetch_thumbnail(media, rest, generation)
 
     # ---- queue persistence -------------------------------------------------
     def _restore_queue(self) -> None:

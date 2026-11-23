@@ -577,6 +577,10 @@ class DownloadPage(QWidget):
 
     def set_media(self, media: MediaInfo) -> None:
         self.media = media
+        # Jamais l'aperçu du média précédent : on repart du texte par défaut
+        # jusqu'à ce que la nouvelle miniature arrive (si elle arrive).
+        self.thumbnail.clear()
+        self.thumbnail.setText("Aperçu")
         duration = f"{int(media.duration or 0) // 60}:{int(media.duration or 0) % 60:02d}"
         best = f"{media.best_height}p" if media.best_height else "inconnue"
         playlist = f" · Playlist ({media.playlist_count} éléments)" if media.is_playlist else ""

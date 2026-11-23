@@ -22,13 +22,29 @@ def parse_metadata(payload: str, original_url: str) -> MediaInfo:
     ) for item in source.get("formats", [])]
     thumbs = source.get("thumbnails") or []
     thumbnail = source.get("thumbnail") or (thumbs[-1].get("url", "") if thumbs else "")
+    candidates = _thumbnail_candidates(str(thumbnail), thumbs)
     return MediaInfo(
         media_id=str(data.get("id") or source.get("id") or ""), title=str(data.get("title") or source.get("title") or "Sans titre"),
         original_url=original_url, description=str(source.get("description") or ""), platform=str(source.get("extractor_key") or source.get("extractor") or ""),
-        author=str(source.get("uploader") or source.get("channel") or ""), thumbnail_url=str(thumbnail), duration=source.get("duration"),
+        author=str(source.get("uploader") or source.get("channel") or ""), thumbnail_url=str(thumbnail), thumbnail_candidates=candidates, duration=source.get("duration"),
         upload_date=str(source.get("upload_date") or ""), view_count=source.get("view_count"), formats=formats,
         subtitles=sorted(set((source.get("subtitles") or {}).keys()) | set((source.get("automatic_captions") or {}).keys())),
         is_playlist=is_playlist, playlist_count=len(entries) if is_playlist else None,
         estimated_size=max((f.file_size or 0 for f in formats), default=0) or None,
     )
 
+
+MAX_THUMBNAIL_CANDIDATES = 6
+
+
+def _thumbnail_candidates(chosen: str, thumbnails: list) -> list[str]:
+    """Miniature désignée par yt-dlp d'abord, puis la liste `thumbnails` par
+    préférence décroissante (yt-dlp la trie par préférence croissante)."""
+    ordered = [chosen] + [str(item.get("url", "")) for item in reversed(thumbnails) if isinstance(item, dict)]
+    result: list[str] = []
+    for url in ordered:
+        if url.lower().startswith(("http://", "https://")) and url not in result:
+            result.append(url)
+        if len(result) == MAX_THUMBNAIL_CANDIDATES:
+            break
+    return result
