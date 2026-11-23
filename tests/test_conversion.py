@@ -170,3 +170,167 @@ def test_progress_reader_ignores_na():
     [value] = _feed(reader, "out_time_us=N/A", "speed=N/A", "progress=continue")
     assert value.percent == 0.0 and value.speed == ""
     assert not reader.seen_progress
+
+
+# ---- Task 3 : ConversionRunner ------------------------------------------------
+
+class FakeProcess:
+    """Remplace QProcess : sorties consommables, aucun vrai processus."""
+
+    def __init__(self, out: bytes = b"", err: bytes = b"") -> None:
+        self.out, self.err = out, err
+        self.terminated = False
+
+    def readAllStandardOutput(self) -> bytes:  # noqa: N802 (API Qt)
+        data, self.out = self.out, b""
+        return data
+
+    def readAllStandardError(self) -> bytes:  # noqa: N802 (API Qt)
+        data, self.err = self.err, b""
+        return data
+
+    def state(self):
+        from PySide6.QtCore import QProcess
+
+        return QProcess.ProcessState.Running
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def kill(self) -> None:
+        pass
+
+    def deleteLater(self) -> None:  # noqa: N802 (API Qt)
+        pass
+
+
+class FakeBinaries:
+    def locate(self, name: str):
+        from pathlib import Path
+
+        return Path(f"{name}.exe")
+
+
+@pytest.fixture
+def conversion(qtbot, tmp_path, monkeypatch):
+    """Runner sur un faux fichier source ; `_launch` enregistre les lancements."""
+    from app.services.conversion_runner import ConversionRunner
+
+    source = tmp_path / "Ma vidéo, live.webm"
+    source.write_bytes(b"x" * 100)
+    runner = ConversionRunner(source, "edit", FakeBinaries())
+    launches: list[tuple[str, list[str]]] = []
+
+    def fake_launch(program, args, _on_done):
+        launches.append((program, args))
+        runner.process = FakeProcess()
+
+    monkeypatch.setattr(runner, "_launch", fake_launch)
+    events = {"finished": [], "failed": [], "encoder": [], "progress": []}
+    runner.finished.connect(lambda path, note: events["finished"].append((path, note)))
+    runner.failed.connect(lambda reason, details: events["failed"].append((reason, details)))
+    runner.encoder_chosen.connect(events["encoder"].append)
+    runner.progress.connect(events["progress"].append)
+    return runner, source, launches, events
+
+
+def _encoder_of(args: list[str]) -> str:
+    return args[args.index("-c:v") + 1]
+
+
+def _probe(runner, stdout: bytes) -> None:
+    runner.start()
+    runner.process = FakeProcess(out=stdout)
+    runner._probe_done(0)
+
+
+def test_probe_duration_feeds_the_progress_reader(conversion):
+    runner, _source, launches, _events = conversion
+    _probe(runner, b"300.5\n")
+    assert launches[0][0] == "ffprobe.exe"
+    program, args = launches[1]
+    assert program == "ffmpeg.exe" and _encoder_of(args) == "h264_nvenc"
+    assert runner._reader.duration == 300.5
+
+
+def test_unreadable_probe_still_converts(conversion):
+    runner, _source, launches, _events = conversion
+    _probe(runner, b"")
+    assert launches[-1][0] == "ffmpeg.exe"
+    assert runner._reader.duration == 0
+
+
+def test_gpu_failure_without_progress_falls_back(conversion):
+    runner, source, launches, events = conversion
+    _probe(runner, b"300\n")
+    temp = source.with_name(source.stem + ".converting.mp4")
+    temp.write_bytes(b"partial")
+    runner._encode_done(1)
+    assert _encoder_of(launches[-1][1]) == "h264_amf"
+    assert not temp.exists()
+    assert events["failed"] == []
+
+
+def test_failure_after_progress_does_not_fall_back(conversion):
+    runner, source, launches, events = conversion
+    _probe(runner, b"300\n")
+    temp = source.with_name(source.stem + ".converting.mp4")
+    temp.write_bytes(b"partial")
+    runner.process = FakeProcess(out=b"out_time_us=1000000\nprogress=continue\n", err=b"No space left on device\n")
+    runner._encode_done(1)
+    assert len(launches) == 2  # probe + un seul encodage
+    assert len(events["failed"]) == 1
+    assert source.read_bytes() == b"x" * 100 and not temp.exists()
+
+
+def test_last_encoder_failure_reports_tail(conversion):
+    runner, _source, _launches, events = conversion
+    from app.services.conversion_service import ConversionService
+
+    ConversionService.preferred["edit"] = "libx264"
+    _probe(runner, b"300\n")
+    runner._encoders.clear()  # libx264 est le dernier essai
+    runner.process = FakeProcess(err=b"No space left on device\n")
+    runner._encode_done(1)
+    [(reason, details)] = events["failed"]
+    assert reason == "Conversion impossible." and "No space left on device" in details
+
+
+def test_success_remembers_encoder_and_finalizes(conversion):
+    runner, source, _launches, events = conversion
+    from app.services.conversion_service import ConversionService
+
+    _probe(runner, b"300\n")
+    source.with_name(source.stem + ".converting.mp4").write_bytes(b"y" * 50)
+    runner._encode_done(0)
+    assert ConversionService.preferred["edit"] == "h264_nvenc"
+    [(path, _note)] = events["finished"]
+    assert path == str(source.with_suffix(".mp4"))
+
+
+def test_encoder_chosen_emitted_on_each_attempt(conversion):
+    runner, _source, _launches, events = conversion
+    _probe(runner, b"300\n")
+    runner._encode_done(1)
+    assert events["encoder"] == ["h264_nvenc", "h264_amf"]
+
+
+def test_progress_is_relayed(conversion):
+    runner, _source, _launches, events = conversion
+    _probe(runner, b"200\n")
+    runner.process = FakeProcess(out=b"out_time_us=50000000\nspeed=2x\nprogress=continue\n")
+    runner._read_stdout()
+    assert [round(p.percent) for p in events["progress"]] == [25]
+
+
+def test_cancel_removes_temp_and_emits_nothing(conversion):
+    runner, source, _launches, events = conversion
+    _probe(runner, b"300\n")
+    temp = source.with_name(source.stem + ".converting.mp4")
+    temp.write_bytes(b"partial")
+    process = runner.process
+    runner.cancel()
+    assert process.terminated
+    runner._encode_done(1)
+    assert not temp.exists() and source.exists()
+    assert events["finished"] == [] and events["failed"] == []
